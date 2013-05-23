@@ -1,4 +1,4 @@
-package org.ow2.mind.test.unit.annotations;
+package org.ow2.mind.unit.annotations;
 
 import org.ow2.mind.adl.annotation.ADLAnnotationTarget;
 import org.ow2.mind.annotation.Annotation;

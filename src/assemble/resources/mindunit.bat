@@ -77,7 +77,7 @@ set MINDUNIT_CMD_LINE_ARGS=%*
 set MINDUNIT_RUNTIME=%MINDUNIT_HOME%/runtime
 set MINDUNIT_LIB=%MINDUNIT_HOME%/lib
 set MINDUNIT_EXT=%MINDUNIT_HOME%/ext
-set LAUNCHER=org.ow2.mind.test.unit.Launcher
+set LAUNCHER=org.ow2.mind.unit.Launcher
 set MINDUNIT_JAVA_EXE="%JAVA_HOME%\bin\java.exe"
 if not "%MINDUNIT_CLASSPATH%" == "" set MINDUNIT_CLASSPATH=%MINDUNIT_CLASSPATH%;
 

@@ -20,7 +20,7 @@
  * Contributors: 
  */
 
-package org.ow2.mind.test.unit;
+package org.ow2.mind.unit;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -45,11 +45,16 @@ import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.objectweb.fractal.adl.ADLException;
 import org.objectweb.fractal.adl.CompilerError;
 import org.objectweb.fractal.adl.Definition;
+import org.objectweb.fractal.adl.NodeFactory;
 import org.objectweb.fractal.adl.error.Error;
 import org.objectweb.fractal.adl.error.GenericErrors;
 import org.objectweb.fractal.adl.util.FractalADLLogManager;
 import org.ow2.mind.ADLCompiler;
 import org.ow2.mind.ADLCompiler.CompilationStage;
+import org.ow2.mind.adl.ast.ASTHelper;
+import org.ow2.mind.adl.ast.Component;
+import org.ow2.mind.adl.ast.ComponentContainer;
+import org.ow2.mind.adl.ast.DefinitionReference;
 import org.ow2.mind.annotation.AnnotationHelper;
 import org.ow2.mind.cli.CmdFlag;
 import org.ow2.mind.cli.CmdOption;
@@ -66,9 +71,11 @@ import org.ow2.mind.error.ErrorManager;
 import org.ow2.mind.inject.GuiceModuleExtensionHelper;
 import org.ow2.mind.plugin.PluginLoaderModule;
 import org.ow2.mind.plugin.PluginManager;
-import org.ow2.mind.test.unit.annotations.TestCase;
+import org.ow2.mind.unit.annotations.TestCase;
+import org.ow2.mind.unit.cli.CUnitModeOptionHandler;
 
 import com.google.inject.Guice;
+import com.google.inject.Inject;
 import com.google.inject.Injector;
 
 public class Launcher {
@@ -103,12 +110,12 @@ public class Launcher {
 	protected List<URL>				validTestFoldersURLList = new ArrayList<URL>();
 
 	protected List<String>			testFolderADLList 		= new ArrayList<String>();
-	
+
 	protected List<Definition>		validTestsList 			= new ArrayList<Definition>();
 
 	protected Map<Object, Object> 	compilerContext			= new HashMap<Object, Object>();
 
-	protected final String 			adlName 				= "org.ow2.mind.test.unit.MindUnitApplication";
+	protected final String 			adlName 				= "org.ow2.mind.unit.MindUnitApplication";
 
 	// compiler components :
 	protected Injector 				injector;
@@ -116,6 +123,9 @@ public class Launcher {
 	protected ErrorManager 			errorManager;
 	protected ADLCompiler 			adlCompiler;
 
+	@Inject
+	NodeFactory						nodeFactory;
+	
 	protected void init(final String... args) throws InvalidCommandLineException {
 
 		List<String> 	testFoldersList;
@@ -184,7 +194,7 @@ public class Launcher {
 			System.exit(1);
 		}
 
-		// add test folders to the src-path
+		// add the computed test folders to the src-path
 		addTestFoldersToPath();
 
 		// initialize compiler
@@ -192,9 +202,7 @@ public class Launcher {
 
 		initCompiler();
 
-		/*
-		 * TODO: Build list of ADL files
-		 */
+		// Build list of ADL files
 		listTestFolderADLs();
 
 		/*
@@ -209,7 +217,7 @@ public class Launcher {
 					for (Object currObj : l) {
 						if (!(currObj instanceof Definition))
 							// error case that should never happen
-							logger.warning("Encountered object \"" + currObj.toString() + "\" isn't a definition !");
+							logger.warning("Encountered object \"" + currObj.toString() + "\" while handling " + currentADL + " isn't a definition !");
 						else {
 							// we've got a definition
 							Definition currDef = (Definition) currObj;
@@ -228,16 +236,97 @@ public class Launcher {
 				e.printStackTrace();
 			}
 		}
-		
-		// TODO: remove this, only used for debug purposes (breakpoint)
-		validTestsList = validTestsList;
+
+		if (validTestsList.isEmpty()) {
+			logger.info("No @TestCase found: exit");
+			System.exit(0);
+		}
 		
 		/*
 		 * TODO: For all test cases get their "TestEntry" interface instance name 
 		 */
 
 		/*
-		 * TODO: Then add the "Suite" component to the test container
+		 * Get the test container 
+		 */
+		Definition containerDef = null;
+		String testContainerName = "org.ow2.mind.unit.MindUnitContainer";
+
+		try {
+			List<Object> containerDefs = adlCompiler.compile(testContainerName, "", CompilationStage.CHECK_ADL, compilerContext);
+			if (containerDefs == null) {
+				logger.severe("Test container could not be loaded - Check availability of the MindUnit components in your runtime folder/source-path !");
+				System.exit(1);
+			}
+
+			// should be size 1 and of course a definition... why would it be different ?
+			if (containerDefs.size() > 1) 
+				logger.warning("Container loading returned multiple definitions - Using only the first one");
+
+			Object containerObj = containerDefs.get(0);
+			if (!(containerObj instanceof Definition)) {
+				logger.severe("Container type wasn't a definition or could not be loaded");
+				System.exit(1);
+			}
+			
+			containerDef = (Definition) containerDefs.get(0);
+			
+			if (!ASTHelper.isComposite(containerDef)) {
+				logger.severe("Container wasn't a composite ! Please be serious.");
+				System.exit(1);
+			}
+
+		} catch (ADLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		/*
+		 * TODO: Add all test cases to the test container as sub-component instances
+		 */
+		logger.info("Adding TestCases to the MindUnit container");
+		for (Definition currTestDef : validTestsList) {
+			DefinitionReference currTestDefRef = ASTHelper.newDefinitionReference(nodeFactory, currTestDef.getName());
+			Component currComp = ASTHelper.newComponent(nodeFactory, currTestDef.getName().replace(".", "_") + "Instance", currTestDefRef);
+			ASTHelper.setResolvedComponentDefinition(currComp, currTestDef);
+			((ComponentContainer) containerDef).addComponent(currComp);
+		}
+
+		/*
+		 * Load the application
+		 */
+		logger.info("Preparing the host application");
+		
+		List<Object> loadedDefs = null;
+		String rootAdlName = adlName + "<";
+
+		if (((String) compilerContext.get(CUnitModeOptionHandler.CUNITMODE_CONTEXT_KEY)).equals("console")) {
+			logger.info("Loading container in Console mode");
+			rootAdlName += "org.ow2.mind.unit.MindUnitConsole";
+		} else {
+			logger.info("Loading container in Automated mode");
+			rootAdlName += "org.ow2.mind.unit.MindUnitAutomated";
+		}
+
+		rootAdlName += ">";
+
+		try {
+			loadedDefs = adlCompiler.compile(rootAdlName, "", CompilationStage.CHECK_ADL, compilerContext);
+		} catch (ADLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		// TODO: remove this, only used for debug purposes (breakpoint)
+		loadedDefs = loadedDefs;
+
+		/*
 		 * TODO: Write the C implementation of the "Suite" component with the good
 		 * struct referencing all the TestEntries ("run" method) previously found.
 		 * Needs to write an according StringTemplate. If we made all TestCases as
@@ -246,22 +335,35 @@ public class Launcher {
 		 */
 
 		/*
-		 * TODO: Then use a Loader to add all test cases to the test container
+		 * TODO: Then add the "Suite" component to the test container
 		 */
 
 		/*
-		 * TODO: Then compile
+		 * Then compile
 		 */
+		logger.info("Compiling full test executable");
+		try {
+			loadedDefs = adlCompiler.compile(rootAdlName, "mindUnitOutput", CompilationStage.COMPILE_EXE, compilerContext);
+		} catch (ADLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		/*
 		 * TODO: Then run the built executable
 		 */
+		
 	}
 
 	/**
 	 * Inspired from org.ow2.mind.cli.SrcPathOptionHandler.
 	 * We extend the original ClassLoader by using it as a parent to a new ClassLoader.
 	 * Valid test folders are taken from this class validTestFoldersURLList attribute.
+	 * We also extend the ClassLoader to the current jar in order to use local (hidden)
+	 * resources.
 	 */
 	protected void addTestFoldersToPath() {
 		// get the --src-path elements
@@ -336,6 +438,9 @@ public class Launcher {
 	protected void initCompiler() {
 		errorManager = injector.getInstance(ErrorManager.class);
 		adlCompiler = injector.getInstance(ADLCompiler.class);
+		
+		// TODO: check if cleanup/moving to another class is needed ?
+		nodeFactory = injector.getInstance(NodeFactory.class);
 	}
 
 	protected void initInjector(final PluginManager pluginManager,

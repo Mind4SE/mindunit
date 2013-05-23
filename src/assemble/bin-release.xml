@@ -9,7 +9,7 @@
     <dependencySets>
 <!-- remove the includes and add the excludes just in the following dependencySet to build a self-contained distribution -->
         <dependencySet>
-            <outputDirectory>lib</outputDirectory>
+            <outputDirectory>ext</outputDirectory>
             <includes>
                 <include>${project.groupId}:mindunit</include>
                 <include>commons-io:commons-io</include>
@@ -22,17 +22,6 @@
             <fileMode>0644</fileMode>
         </dependencySet>
 
-<!-- 
-        <dependencySet>
-            <outputDirectory>bundle</outputDirectory>
-            <includes>
-                <include>${project.groupId}:fractal-adl-bundle</include>
-            </includes>
-            <scope>test</scope>
-            <outputFileNameMapping>${artifact.groupId}.${artifact.artifactId}_${artifact.version}${dashClassifier?}.${artifact.extension}</outputFileNameMapping>
-            <fileMode>0644</fileMode>
-        </dependencySet>
-
         <dependencySet>
             <unpack>true</unpack>
             <unpackOptions>
@@ -41,12 +30,11 @@
                 </excludes>
             </unpackOptions>
             <includes>
-                <include>${project.groupId}:fractal-runtime</include>
+                <include>${project.groupId}:mindunit-runtime</include>
             </includes>
             <outputDirectory>runtime</outputDirectory>
             <fileMode>0644</fileMode>
         </dependencySet>
--->
     </dependencySets>
 <!-- 
     <fileSets>

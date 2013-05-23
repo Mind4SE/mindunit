@@ -116,7 +116,7 @@ fi
 
 
 ## Launcher class name
-LAUNCHER=org.ow2.mind.test.unit.Launcher
+LAUNCHER=org.ow2.mind.unit.Launcher
 
 ## Preparation of the java command to be executed
 if [ -z "$JAVACMD" ] ; then

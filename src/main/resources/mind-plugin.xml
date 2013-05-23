@@ -27,7 +27,21 @@
     <extension
         point="org.ow2.mind.predefined-annotations">
         <annotation
-            package="org.ow2.mind.test.unit.annotations" />
+            package="org.ow2.mind.unit.annotations" />
+    </extension>
+
+	<extension
+        point="org.ow2.mind.mindc.command-line-options">
+
+		<cmdArgument
+			id="org.ow2.mind.unit.CUnitMode"
+			handler="org.ow2.mind.unit.cli.CUnitModeOptionHandler"
+			longName="cunit-mode"
+			defaultValue="automated"
+			allowMultiple="false"
+			description="CUnit interface mode selection (if no value, automated is the default)"
+			argDesc="&lt;automated/console&gt;" />
+		
     </extension>
 
 </plugin>
