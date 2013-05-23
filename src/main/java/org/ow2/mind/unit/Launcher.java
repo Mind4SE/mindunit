@@ -71,7 +71,7 @@ import org.ow2.mind.error.ErrorManager;
 import org.ow2.mind.inject.GuiceModuleExtensionHelper;
 import org.ow2.mind.plugin.PluginLoaderModule;
 import org.ow2.mind.plugin.PluginManager;
-import org.ow2.mind.unit.annotations.TestCase;
+import org.ow2.mind.unit.annotations.TestSuite;
 import org.ow2.mind.unit.cli.CUnitModeOptionHandler;
 
 import com.google.inject.Guice;
@@ -222,7 +222,7 @@ public class Launcher {
 							// we've got a definition
 							Definition currDef = (Definition) currObj;
 							// Then keep only if annotated with @TestCase
-							if (AnnotationHelper.getAnnotation(currDef, TestCase.class) != null) {
+							if (AnnotationHelper.getAnnotation(currDef, TestSuite.class) != null) {
 								validTestsList.add(currDef);
 								logger.info("@TestCase found: " + currDef.getName());
 							}

@@ -4,7 +4,7 @@ import org.ow2.mind.adl.annotation.ADLAnnotationTarget;
 import org.ow2.mind.annotation.Annotation;
 import org.ow2.mind.annotation.AnnotationTarget;
 
-public class TestCase implements Annotation {
+public class TestSuite implements Annotation {
 	
 	private static final long serialVersionUID = 405236988057923551L;
 	
