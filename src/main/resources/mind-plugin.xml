@@ -16,7 +16,7 @@
 
  Contact: mind@ow2.org
 
- Authors: Matthieu Leclercq
+ Authors: Stephane Seyvoz
  Contributors: 
 
  -->
@@ -28,6 +28,14 @@
         point="org.ow2.mind.predefined-annotations">
         <annotation
             package="org.ow2.mind.unit.annotations" />
+    </extension>
+
+	<extension
+        point="org.ow2.mind.plugin.guice-module">
+        <module
+            class="org.ow2.mind.unit.MindUnitModule">
+            <combine class="org.ow2.mind.CommonBackendModule" />
+        </module>
     </extension>
 
 	<extension

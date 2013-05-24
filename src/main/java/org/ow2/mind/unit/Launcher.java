@@ -30,6 +30,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,9 +46,13 @@ import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.objectweb.fractal.adl.ADLException;
 import org.objectweb.fractal.adl.CompilerError;
 import org.objectweb.fractal.adl.Definition;
+import org.objectweb.fractal.adl.Loader;
 import org.objectweb.fractal.adl.NodeFactory;
 import org.objectweb.fractal.adl.error.Error;
 import org.objectweb.fractal.adl.error.GenericErrors;
+import org.objectweb.fractal.adl.interfaces.Interface;
+import org.objectweb.fractal.adl.interfaces.InterfaceContainer;
+import org.objectweb.fractal.adl.types.TypeInterface;
 import org.objectweb.fractal.adl.util.FractalADLLogManager;
 import org.ow2.mind.ADLCompiler;
 import org.ow2.mind.ADLCompiler.CompilationStage;
@@ -55,6 +60,8 @@ import org.ow2.mind.adl.ast.ASTHelper;
 import org.ow2.mind.adl.ast.Component;
 import org.ow2.mind.adl.ast.ComponentContainer;
 import org.ow2.mind.adl.ast.DefinitionReference;
+import org.ow2.mind.adl.ast.ImplementationContainer;
+import org.ow2.mind.adl.ast.Source;
 import org.ow2.mind.annotation.AnnotationHelper;
 import org.ow2.mind.cli.CmdFlag;
 import org.ow2.mind.cli.CmdOption;
@@ -64,18 +71,29 @@ import org.ow2.mind.cli.CommandLineOptionExtensionHelper;
 import org.ow2.mind.cli.CommandOptionHandler;
 import org.ow2.mind.cli.InvalidCommandLineException;
 import org.ow2.mind.cli.Options;
+import org.ow2.mind.cli.OutPathOptionHandler;
 import org.ow2.mind.cli.PrintStackTraceOptionHandler;
 import org.ow2.mind.cli.SrcPathOptionHandler;
 import org.ow2.mind.cli.StageOptionHandler;
 import org.ow2.mind.error.ErrorManager;
+import org.ow2.mind.idl.IDLLoader;
+import org.ow2.mind.idl.ast.IDL;
+import org.ow2.mind.idl.ast.InterfaceDefinition;
+import org.ow2.mind.idl.ast.Method;
 import org.ow2.mind.inject.GuiceModuleExtensionHelper;
+import org.ow2.mind.io.OutputFileLocator;
 import org.ow2.mind.plugin.PluginLoaderModule;
 import org.ow2.mind.plugin.PluginManager;
+import org.ow2.mind.unit.annotations.Test;
 import org.ow2.mind.unit.annotations.TestSuite;
 import org.ow2.mind.unit.cli.CUnitModeOptionHandler;
+import org.ow2.mind.unit.model.Suite;
+import org.ow2.mind.unit.model.TestCase;
+import org.ow2.mind.unit.model.TestInfo;
+import org.ow2.mind.unit.st.BasicSuiteSourceGenerator;
+import org.ow2.mind.unit.st.SuiteSourceGenerator;
 
 import com.google.inject.Guice;
-import com.google.inject.Inject;
 import com.google.inject.Injector;
 
 public class Launcher {
@@ -107,11 +125,12 @@ public class Launcher {
 	protected static Logger			logger					= FractalADLLogManager.getLogger("mindunit-launcher");
 
 	protected List<File>			validTestFoldersList 	= new ArrayList<File>();
-	protected List<URL>				validTestFoldersURLList = new ArrayList<URL>();
+	protected List<URL>				urlList 				= new ArrayList<URL>();
 
 	protected List<String>			testFolderADLList 		= new ArrayList<String>();
 
 	protected List<Definition>		validTestsList 			= new ArrayList<Definition>();
+	protected List<Suite>			testSuites 				= new ArrayList<Suite>();
 
 	protected Map<Object, Object> 	compilerContext			= new HashMap<Object, Object>();
 
@@ -123,9 +142,12 @@ public class Launcher {
 	protected ErrorManager 			errorManager;
 	protected ADLCompiler 			adlCompiler;
 
-	@Inject
-	NodeFactory						nodeFactory;
-	
+	protected NodeFactory			nodeFactory;
+	protected SuiteSourceGenerator 	suiteCSrcGenerator;
+	protected Loader 				loaderItf;
+	protected IDLLoader 			idlLoaderItf;
+	protected OutputFileLocator 	outputFileLocatorItf;
+
 	protected void init(final String... args) throws InvalidCommandLineException {
 
 		List<String> 	testFoldersList;
@@ -182,7 +204,7 @@ public class Launcher {
 					validTestFoldersList.add(testDirectory);
 					try {
 						URL testDirURL = testDirectory.toURI().toURL();
-						validTestFoldersURLList.add(testDirURL);
+						urlList.add(testDirURL);
 					} catch (final MalformedURLException e) {
 						// will never happen since we already checked File
 					}
@@ -194,6 +216,17 @@ public class Launcher {
 			System.exit(1);
 		}
 
+		// also add the URL to the generated files folder
+		File outDir = OutPathOptionHandler.getOutPath(compilerContext);
+		File genFilesDir = new File(outDir.getAbsolutePath(), "unit-gen");
+		while (!genFilesDir.exists())
+			genFilesDir.mkdirs();
+		try {
+			urlList.add(genFilesDir.toURI().toURL());
+		} catch (MalformedURLException e2) {
+			logger.severe("Could not access to " + outDir.getPath() + "/" + "unit-gen" + " file generation path !");
+		}
+		
 		// add the computed test folders to the src-path
 		addTestFoldersToPath();
 
@@ -241,7 +274,7 @@ public class Launcher {
 			logger.info("No @TestCase found: exit");
 			System.exit(0);
 		}
-		
+
 		/*
 		 * TODO: For all test cases get their "TestEntry" interface instance name 
 		 */
@@ -268,9 +301,9 @@ public class Launcher {
 				logger.severe("Container type wasn't a definition or could not be loaded");
 				System.exit(1);
 			}
-			
+
 			containerDef = (Definition) containerDefs.get(0);
-			
+
 			if (!ASTHelper.isComposite(containerDef)) {
 				logger.severe("Container wasn't a composite ! Please be serious.");
 				System.exit(1);
@@ -285,7 +318,10 @@ public class Launcher {
 		}
 
 		/*
-		 * TODO: Add all test cases to the test container as sub-component instances
+		 * Add all test cases to the test container as sub-component instances
+		 * TODO: FIXME: if the application was already compiled and the container re-loaded pre-filled,
+		 * we obtain duplicates of sub-components, and that leads to compilation errors !
+		 * Idea: force regen of container ? check its sub-components ?
 		 */
 		logger.info("Adding TestCases to the MindUnit container");
 		for (Definition currTestDef : validTestsList) {
@@ -299,7 +335,7 @@ public class Launcher {
 		 * Load the application
 		 */
 		logger.info("Preparing the host application");
-		
+
 		List<Object> loadedDefs = null;
 		String rootAdlName = adlName + "<";
 
@@ -323,25 +359,113 @@ public class Launcher {
 			e.printStackTrace();
 		}
 
-		// TODO: remove this, only used for debug purposes (breakpoint)
-		loadedDefs = loadedDefs;
-
 		/*
-		 * TODO: Write the C implementation of the "Suite" component with the good
+		 * Write the C implementation of the "Suite" component with the good
 		 * struct referencing all the TestEntries ("run" method) previously found.
 		 * Needs to write an according StringTemplate. If we made all TestCases as
 		 * @Singleton, we could reference CALLs (no "this") and create according bindings ?
 		 * A bit heavy but more architecture-friendly. And may simplify function names calculations.
 		 */
+		logger.info("Generating Suite source implementation");
 
+		// prepare test cases list
+		List<TestCase> currItfValidTestCases = null;
+		TestInfo currTestInfo = null;
+
+
+		// build the Suite list
+		for (Definition currDef : validTestsList) {
+			String description = (AnnotationHelper.getAnnotation(currDef, TestSuite.class)).value;
+			if (description == null)
+				description = currDef.getName();
+
+			if (currDef instanceof ComponentContainer) {
+				// handle all sub-components (no recursion)
+				ComponentContainer currCompContainer = (ComponentContainer) currDef;
+				for (Component currComp : currCompContainer.getComponents()) {
+					try {
+						Definition currCompDef = ASTHelper.getResolvedComponentDefinition(currComp, loaderItf, compilerContext);
+						if (currCompDef instanceof InterfaceContainer) {
+							// handle sub-component server interfaces, find the list of @Test-annotated methods
+							InterfaceContainer currItfContainer = (InterfaceContainer) currCompDef;
+							for (Interface currItf : currItfContainer.getInterfaces()) {
+								currItfValidTestCases = new ArrayList<TestCase>();
+								// should be everywhere isn't it ?
+								assert currItf instanceof TypeInterface;
+								TypeInterface currTypeItf = (TypeInterface) currItf;
+								// we only are concerned by server interfaces
+								if (currTypeItf.getRole().equals(TypeInterface.SERVER_ROLE)) {
+									String itfSignature = currTypeItf.getSignature();
+									// now get the itf methods
+									IDL currIDL = idlLoaderItf.load(itfSignature, compilerContext);
+									assert currIDL instanceof InterfaceDefinition;
+									InterfaceDefinition currItfDef = (InterfaceDefinition) currIDL;
+									for (Method currMethod : currItfDef.getMethods()) {
+										if (AnnotationHelper.getAnnotation(currMethod, Test.class) != null) {
+											Test testCase = AnnotationHelper.getAnnotation(currMethod, Test.class);
+
+											String testDescription = null;
+											if (testCase.value == null)
+												testDescription = currMethod.getName();
+											else
+												testDescription = testCase.value;
+
+											// TODO: check return type is void
+											// TODO: check arguments (must be only one, and void)
+
+											// FIXME: maybe calculate the method name in a more elegant way...
+											String cMethodName = "__component_" + currCompDef.getName().replace(".", "_")
+													+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
+
+											currItfValidTestCases.add(new TestCase(testDescription, cMethodName));
+										}
+									}
+
+									if (!currItfValidTestCases.isEmpty()) {
+										currTestInfo = new TestInfo(currTypeItf.getName() + "Tests", currItfValidTestCases);
+										testSuites.add(new Suite(description + " - " + currTypeItf.getName(), "NULL", "NULL", currTestInfo));
+									}
+								}
+							}
+						}
+					} catch (ADLException e) {
+						logger.severe("Could not resolve definition of " + currDef.getName() + "." + currComp.getName() + " ! - skip");
+						continue;
+					}
+				}
+			}
+		}
+		try {
+			suiteCSrcGenerator.visit(testSuites, compilerContext);
+		} catch (ADLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
+		logger.info("Adding the Suite to the test container");
+		
 		/*
-		 * TODO: Then add the "Suite" component to the test container
+		 * Create a primitive with the source file as implementation
 		 */
+		Definition mindUnitSuiteDefinition = ASTHelper.newPrimitiveDefinitionNode(nodeFactory, "MindUnitSuiteDefinition", (DefinitionReference[]) null);
+		// the newPrimitiveDefinitionNode enforces ImplementationContainer.class compatibility
+		ImplementationContainer mindUnitSuiteDefAsImplCtr = (ImplementationContainer) mindUnitSuiteDefinition;
+		Source mindUnitSuiteSource = ASTHelper.newSource(nodeFactory);
+		mindUnitSuiteSource.setPath(BasicSuiteSourceGenerator.getSuiteFileName());
+		mindUnitSuiteDefAsImplCtr.addSource(mindUnitSuiteSource);
+		
+		/*
+		 *Then add the "Suite" component to the test container
+		 */
+		DefinitionReference mindUnitSuiteDefRef = ASTHelper.newDefinitionReference(nodeFactory, mindUnitSuiteDefinition.getName());
+		Component mindUnitSuiteComp = ASTHelper.newComponent(nodeFactory, mindUnitSuiteDefRef.getName().replace(".", "_") + "Instance", mindUnitSuiteDefRef);
+		ASTHelper.setResolvedComponentDefinition(mindUnitSuiteComp, mindUnitSuiteDefinition);
+		((ComponentContainer) containerDef).addComponent(mindUnitSuiteComp);
 
 		/*
 		 * Then compile
 		 */
-		logger.info("Compiling full test executable");
+		logger.info("Launching executable compilation");
 		try {
 			loadedDefs = adlCompiler.compile(rootAdlName, "mindUnitOutput", CompilationStage.COMPILE_EXE, compilerContext);
 		} catch (ADLException e) {
@@ -355,13 +479,13 @@ public class Launcher {
 		/*
 		 * TODO: Then run the built executable
 		 */
-		
+
 	}
 
 	/**
 	 * Inspired from org.ow2.mind.cli.SrcPathOptionHandler.
 	 * We extend the original ClassLoader by using it as a parent to a new ClassLoader.
-	 * Valid test folders are taken from this class validTestFoldersURLList attribute.
+	 * Valid test folders are taken from this class urlList attribute.
 	 * We also extend the ClassLoader to the current jar in order to use local (hidden)
 	 * resources.
 	 */
@@ -371,7 +495,7 @@ public class Launcher {
 
 		// URL array of test path, replace the original source class-loader with our enriched one
 		// and use the original source class-loader as parent so as to keep everything intact
-		ClassLoader srcAndTestPathClassLoader = new URLClassLoader(validTestFoldersURLList.toArray(new URL[0]), srcPathClassLoader);
+		ClassLoader srcAndTestPathClassLoader = new URLClassLoader(urlList.toArray(new URL[0]), srcPathClassLoader);
 
 		// replace the original source classloader with the new one in the context
 		compilerContext.remove("classloader");
@@ -438,9 +562,13 @@ public class Launcher {
 	protected void initCompiler() {
 		errorManager = injector.getInstance(ErrorManager.class);
 		adlCompiler = injector.getInstance(ADLCompiler.class);
-		
+
 		// TODO: check if cleanup/moving to another class is needed ?
 		nodeFactory = injector.getInstance(NodeFactory.class);
+		suiteCSrcGenerator = injector.getInstance(SuiteSourceGenerator.class);
+		loaderItf = injector.getInstance(Loader.class);
+		idlLoaderItf = injector.getInstance(IDLLoader.class);
+		outputFileLocatorItf = injector.getInstance(OutputFileLocator.class);
 	}
 
 	protected void initInjector(final PluginManager pluginManager,

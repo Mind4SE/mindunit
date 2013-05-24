@@ -1,15 +1,15 @@
 package org.ow2.mind.unit.annotations;
 
-import org.ow2.mind.adl.annotation.ADLAnnotationTarget;
 import org.ow2.mind.annotation.Annotation;
 import org.ow2.mind.annotation.AnnotationElement;
 import org.ow2.mind.annotation.AnnotationTarget;
+import org.ow2.mind.idl.annotation.IDLAnnotationTarget;
 
-public class TestSuite implements Annotation {
+public class Test implements Annotation {
 	
 	private static final long serialVersionUID = 405236988057923551L;
 	
-	private static final AnnotationTarget[] ANNOTATION_TARGETS = { ADLAnnotationTarget.DEFINITION };
+	private static final AnnotationTarget[] ANNOTATION_TARGETS = { IDLAnnotationTarget.METHOD };
 	
 	@AnnotationElement(hasDefaultValue=true)
 	public String value = null;

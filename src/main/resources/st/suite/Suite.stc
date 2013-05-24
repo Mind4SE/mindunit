@@ -1,0 +1,74 @@
+template st.suite.Suite {
+
+$${
+
+Suite(suiteDefinitions) ::= <<
+/* Generated file: mindUnitSuite.c */
+
+#include "CUnit.h"
+
+<TestFunctionsPrototypesDeclaration(suiteDefinitions=suiteDefinitions)>
+
+<TestsInfosDeclaration(suiteDefinitions=suiteDefinitions)>
+
+<SuitesDeclaration(suiteDefinitions=suiteDefinitions)>
+
+>>
+
+SuitesDeclaration(suiteDefinitions)  ::= <<
+/* Start declaration of all test suites struct */
+CU_SuiteInfo suites [] = {
+<suiteDefinitions:SuiteStructDeclaration(suiteDefinition=it); separator="\n">
+  CU_SUITE_INFO_NULL
+};
+/* End declaration of all test suites struct */
+>>
+
+SuiteStructDeclaration(suiteDefinition) ::= <<
+  { "<suiteDefinition.description>", <suiteDefinition.initFunc>, <suiteDefinition.cleanupFunc>, <suiteDefinition.testInfo.structName> },
+>>
+
+TestsInfosDeclaration(suiteDefinitions) ::= <<
+<suiteDefinitions:TestInfosDeclarationsFromSuite(suiteDefinition=it); separator="\n\n">
+>>
+
+TestInfosDeclarationsFromSuite(suiteDefinition) ::= <<
+<TestInfosDeclaration(testInfo=suiteDefinition.testInfo)>
+>>
+
+TestInfosDeclaration(testInfo) ::= <<
+/* Start declaration of simple test suite */
+static CU_TestInfo <testInfo.structName> [] = {
+  <testInfo.testCases:TestInfoStructDeclaration(testCase=it); separator="\n">
+  CU_TEST_INFO_NULL
+};
+/* End declaration of simple test suite */
+>>
+
+TestInfoStructDeclaration(testCase) ::= <<
+{ "<testCase.name>", <testCase.function> },
+>>
+
+TestFunctionsPrototypesDeclaration(suiteDefinitions) ::= <<
+/* Start prototype declarations  */
+<suiteDefinitions:TestFunctionsPrototypesDeclaration0(suiteDefinition=it); separator="\n">
+/* End prototype declarations  */
+>>
+
+TestFunctionsPrototypesDeclaration0(suiteDefinition) ::= <<
+<! // Suite: <suiteDefinition.description> !>
+<TestFunctionsPrototypesDeclaration1(testInfo=suiteDefinition.testInfo)>
+>>
+
+TestFunctionsPrototypesDeclaration1(testInfo) ::= <<
+<! // TestInfo: <testInfo.structName> !>
+<testInfo.testCases:TestFunctionsPrototypesDeclaration2(testCase=it); separator="\n">
+>>
+
+TestFunctionsPrototypesDeclaration2(testCase) ::= <<
+extern void <testCase.function>(void);
+>>
+
+}$$
+
+}
