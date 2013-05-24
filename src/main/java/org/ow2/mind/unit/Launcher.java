@@ -122,7 +122,7 @@ public class Launcher {
 
 	protected final Options 		options					= new Options();
 
-	protected static Logger			logger					= FractalADLLogManager.getLogger("mindunit-launcher");
+	protected static Logger			logger					= FractalADLLogManager.getLogger("mindunit");
 
 	protected List<File>			validTestFoldersList 	= new ArrayList<File>();
 	protected List<URL>				urlList 				= new ArrayList<URL>();
@@ -420,8 +420,12 @@ public class Launcher {
 											currItfValidTestCases.add(new TestCase(testDescription, cMethodName));
 										}
 									}
-
+									
 									if (!currItfValidTestCases.isEmpty()) {
+										if (!ASTHelper.isSingleton(currCompDef)) {
+											logger.warning("Component " + currCompDef.getName() + " must be @Singleton to host @Test-s - skip !");
+											break;
+										}
 										currTestInfo = new TestInfo(currTypeItf.getName() + "Tests", currItfValidTestCases);
 										testSuites.add(new Suite(description + " - " + currTypeItf.getName(), "NULL", "NULL", currTestInfo));
 									}
