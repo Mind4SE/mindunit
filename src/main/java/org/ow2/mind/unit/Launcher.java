@@ -259,10 +259,10 @@ public class Launcher {
 						else {
 							// we've got a definition
 							Definition currDef = (Definition) currObj;
-							// Then keep only if annotated with @TestCase
+							// Then keep only if annotated with @TestSuite
 							if (AnnotationHelper.getAnnotation(currDef, TestSuite.class) != null) {
 								validTestsList.add(currDef);
-								logger.info("@TestCase found: " + currDef.getName());
+								logger.info("@TestSuite found: " + currDef.getName());
 							}
 						}
 					}
@@ -276,7 +276,7 @@ public class Launcher {
 		}
 
 		if (validTestsList.isEmpty()) {
-			logger.info("No @TestCase found: exit");
+			logger.info("No @TestSuite found: exit");
 			System.exit(0);
 		}
 
