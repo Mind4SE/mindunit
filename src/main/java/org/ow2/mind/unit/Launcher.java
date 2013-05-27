@@ -80,10 +80,15 @@ import org.ow2.mind.idl.IDLLoader;
 import org.ow2.mind.idl.ast.IDL;
 import org.ow2.mind.idl.ast.InterfaceDefinition;
 import org.ow2.mind.idl.ast.Method;
+import org.ow2.mind.idl.ast.Parameter;
+import org.ow2.mind.idl.ast.PrimitiveType;
+import org.ow2.mind.idl.ast.Type;
 import org.ow2.mind.inject.GuiceModuleExtensionHelper;
 import org.ow2.mind.io.OutputFileLocator;
 import org.ow2.mind.plugin.PluginLoaderModule;
 import org.ow2.mind.plugin.PluginManager;
+import org.ow2.mind.unit.annotations.Cleanup;
+import org.ow2.mind.unit.annotations.Init;
 import org.ow2.mind.unit.annotations.Test;
 import org.ow2.mind.unit.annotations.TestSuite;
 import org.ow2.mind.unit.cli.CUnitModeOptionHandler;
@@ -226,7 +231,7 @@ public class Launcher {
 		} catch (MalformedURLException e2) {
 			logger.severe("Could not access to " + outDir.getPath() + "/" + "unit-gen" + " file generation path !");
 		}
-		
+
 		// add the computed test folders to the src-path
 		addTestFoldersToPath();
 
@@ -388,49 +393,131 @@ public class Launcher {
 						if (currCompDef instanceof InterfaceContainer) {
 							// handle sub-component server interfaces, find the list of @Test-annotated methods
 							InterfaceContainer currItfContainer = (InterfaceContainer) currCompDef;
-							for (Interface currItf : currItfContainer.getInterfaces()) {
+							
+							for (Interface currItf : currItfContainer.getInterfaces()) { // start for all interfaces
+								
+								// re-init at every loop
+								String currItfInitFuncName = null;
+								String currItfCleanupFuncName = null;
 								currItfValidTestCases = new ArrayList<TestCase>();
+								
 								// should be everywhere isn't it ?
 								assert currItf instanceof TypeInterface;
 								TypeInterface currTypeItf = (TypeInterface) currItf;
+								
 								// we only are concerned by server interfaces
 								if (currTypeItf.getRole().equals(TypeInterface.SERVER_ROLE)) {
+									
 									String itfSignature = currTypeItf.getSignature();
 									// now get the itf methods
 									IDL currIDL = idlLoaderItf.load(itfSignature, compilerContext);
 									assert currIDL instanceof InterfaceDefinition;
 									InterfaceDefinition currItfDef = (InterfaceDefinition) currIDL;
 									for (Method currMethod : currItfDef.getMethods()) {
-										if (AnnotationHelper.getAnnotation(currMethod, Test.class) != null) {
-											Test testCase = AnnotationHelper.getAnnotation(currMethod, Test.class);
+										boolean isTest 		= AnnotationHelper.getAnnotation(currMethod, Test.class) != null;
+										boolean isInit 		= AnnotationHelper.getAnnotation(currMethod, Init.class) != null;
+										boolean isCleanup 	= AnnotationHelper.getAnnotation(currMethod, Cleanup.class) != null;
 
-											String testDescription = null;
-											if (testCase.value == null)
-												testDescription = currMethod.getName();
-											else
-												testDescription = testCase.value;
+										// Maybe replace the algorithm for a switch-case ?
+										
+										// ^ = XOR
+										if (isTest ^ isInit ^ isCleanup) {
 
-											// TODO: check return type is void
-											// TODO: check arguments (must be only one, and void)
+											if (isTest) {
+												Test testCase = AnnotationHelper.getAnnotation(currMethod, Test.class);
 
-											// FIXME: maybe calculate the method name in a more elegant way...
-											String cMethodName = "__component_" + currCompDef.getName().replace(".", "_")
-													+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
+												String testDescription = null;
+												if (testCase.value == null)
+													testDescription = currMethod.getName();
+												else
+													testDescription = testCase.value;
 
-											currItfValidTestCases.add(new TestCase(testDescription, cMethodName));
+												// return type should be void
+												Type methodType = currMethod.getType();
+												if (!(methodType instanceof PrimitiveType
+														&& ((PrimitiveType) methodType).getName().equals("void"))) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method return type should be \"void\" - Adding to test list anyway");
+												}
+
+												// argument must be void ( = no argument)
+												Parameter[] methodParams = currMethod.getParameters();
+												if (methodParams.length > 0) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method arguments must be \"(void)\" - Skipping method");
+													continue;
+												}
+
+												// FIXME: maybe calculate the method name in a more elegant way...
+												String cMethodName = "__component_" + currCompDef.getName().replace(".", "_")
+														+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
+
+												currItfValidTestCases.add(new TestCase(testDescription, cMethodName));
+											} else if (isInit) {
+												if (currItfInitFuncName != null) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": An @Init method was already defined - Skipping");
+													continue;
+												}
+												// FIXME: maybe calculate the method name in a more elegant way...
+												currItfInitFuncName = "__component_" + currCompDef.getName().replace(".", "_")
+														+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
+												
+												// return type should be void
+												Type methodType = currMethod.getType();
+												if (!(methodType instanceof PrimitiveType
+														&& ((PrimitiveType) methodType).getName().equals("int"))) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method return type should be \"int\" - Adding to test list anyway");
+												}
+
+												// argument must be void ( = no argument)
+												Parameter[] methodParams = currMethod.getParameters();
+												if (methodParams.length > 0) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method arguments must be \"(void)\" - Skipping method");
+													continue;
+												}
+												
+											} else if (isCleanup) {
+												if (currItfCleanupFuncName != null) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": An @Init method was already defined - Skipping");
+													continue;
+												}
+												// FIXME: maybe calculate the method name in a more elegant way...
+												currItfCleanupFuncName = "__component_" + currCompDef.getName().replace(".", "_")
+														+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
+												
+												// return type should be void
+												Type methodType = currMethod.getType();
+												if (!(methodType instanceof PrimitiveType
+														&& ((PrimitiveType) methodType).getName().equals("int"))) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method return type should be \"int\" - Adding to test list anyway");
+												}
+
+												// argument must be void ( = no argument)
+												Parameter[] methodParams = currMethod.getParameters();
+												if (methodParams.length > 0) {
+													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method arguments must be \"(void)\" - Skipping method");
+													continue;
+												}
+											}
+										} else if (isTest || isInit || isCleanup) {
+											// if the XOR failed and there was at least one annotation it means we had 2 or more... 
+											// and we didn't want to raise an error when there was no annotation at all
+											logger.warning("@Init, @Test and @Cleanup are mutually exclusive - Please clarify " + currItfDef.getName() + "#" + currMethod.getName() + " role - Skipping method");
+											continue;
 										}
+									}
+								} // end if itf is server
+								
+								// build the test suite
+								if (!currItfValidTestCases.isEmpty()) {
+									if (!ASTHelper.isSingleton(currCompDef)) {
+										logger.warning("Component " + currCompDef.getName() + " must be @Singleton to host @Test-s - skip !");
+										break;
 									}
 									
-									if (!currItfValidTestCases.isEmpty()) {
-										if (!ASTHelper.isSingleton(currCompDef)) {
-											logger.warning("Component " + currCompDef.getName() + " must be @Singleton to host @Test-s - skip !");
-											break;
-										}
-										currTestInfo = new TestInfo(currTypeItf.getName() + "Tests", currItfValidTestCases);
-										testSuites.add(new Suite(description + " - " + currTypeItf.getName(), "NULL", "NULL", currTestInfo));
-									}
+									currTestInfo = new TestInfo(currTypeItf.getName(), currItfValidTestCases);
+									testSuites.add(new Suite(description + " - " + currTypeItf.getName(), currItfInitFuncName, currItfCleanupFuncName, currTestInfo));
 								}
-							}
+								
+							} // end for all interfaces
 						}
 					} catch (ADLException e) {
 						logger.severe("Could not resolve definition of " + currDef.getName() + "." + currComp.getName() + " ! - skip");
@@ -447,7 +534,7 @@ public class Launcher {
 		}
 
 		logger.info("Adding the Suite to the test container");
-		
+
 		/*
 		 * Create a primitive with the source file as implementation
 		 */
@@ -457,7 +544,7 @@ public class Launcher {
 		Source mindUnitSuiteSource = ASTHelper.newSource(nodeFactory);
 		mindUnitSuiteSource.setPath(BasicSuiteSourceGenerator.getSuiteFileName());
 		mindUnitSuiteDefAsImplCtr.addSource(mindUnitSuiteSource);
-		
+
 		/*
 		 *Then add the "Suite" component to the test container
 		 */

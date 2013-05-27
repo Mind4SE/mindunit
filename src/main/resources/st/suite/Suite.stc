@@ -25,7 +25,7 @@ CU_SuiteInfo suites [] = {
 >>
 
 SuiteStructDeclaration(suiteDefinition) ::= <<
-  { "<suiteDefinition.description>", <suiteDefinition.initFunc>, <suiteDefinition.cleanupFunc>, <suiteDefinition.testInfo.structName> },
+  { "<suiteDefinition.description>", <if (suiteDefinition.initFunc)><suiteDefinition.initFunc><else>NULL<endif>, <if (suiteDefinition.cleanupFunc)><suiteDefinition.cleanupFunc><else>NULL<endif>, <suiteDefinition.testInfo.structName> },
 >>
 
 TestsInfosDeclaration(suiteDefinitions) ::= <<
@@ -51,17 +51,34 @@ TestInfoStructDeclaration(testCase) ::= <<
 
 TestFunctionsPrototypesDeclaration(suiteDefinitions) ::= <<
 /* Start prototype declarations  */
-<suiteDefinitions:TestFunctionsPrototypesDeclaration0(suiteDefinition=it); separator="\n">
+<suiteDefinitions:TestSuitePrototypesDeclaration(suiteDefinition=it); separator="\n">
 /* End prototype declarations  */
 >>
 
-TestFunctionsPrototypesDeclaration0(suiteDefinition) ::= <<
-<! // Suite: <suiteDefinition.description> !>
+TestSuitePrototypesDeclaration(suiteDefinition) ::= <<
+// Suite: <suiteDefinition.description>
+<DeclareSuiteInitFunc(suiteDefinition)>
+<DeclareSuiteCleanupFunc(suiteDefinition)>
 <TestFunctionsPrototypesDeclaration1(testInfo=suiteDefinition.testInfo)>
+
+>>
+
+DeclareSuiteInitFunc(suiteDefinition) ::= <<
+<if (suiteDefinition.initFunc)>
+// Init
+extern int <suiteDefinition.initFunc>(void);
+<endif>
+>>
+
+DeclareSuiteCleanupFunc(suiteDefinition) ::= <<
+<if (suiteDefinition.cleanupFunc)>
+// Cleanup
+extern int <suiteDefinition.cleanupFunc>(void);
+<endif>
 >>
 
 TestFunctionsPrototypesDeclaration1(testInfo) ::= <<
-<! // TestInfo: <testInfo.structName> !>
+// Tests
 <testInfo.testCases:TestFunctionsPrototypesDeclaration2(testCase=it); separator="\n">
 >>
 
