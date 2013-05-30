@@ -62,8 +62,9 @@ import org.objectweb.fractal.adl.types.TypeInterfaceUtil;
 import org.objectweb.fractal.adl.util.FractalADLLogManager;
 import org.ow2.mind.ADLCompiler;
 import org.ow2.mind.ADLCompiler.CompilationStage;
+import org.ow2.mind.ForceRegenContextHelper;
 import org.ow2.mind.adl.annotation.predefined.Singleton;
-import org.ow2.mind.adl.annotations.DumpASTAnnotationProcessor;
+//import org.ow2.mind.adl.annotations.DumpASTAnnotationProcessor;
 import org.ow2.mind.adl.ast.ASTHelper;
 import org.ow2.mind.adl.ast.Binding;
 import org.ow2.mind.adl.ast.BindingContainer;
@@ -262,6 +263,27 @@ public class Launcher {
 		// Build list of ADL files
 		listTestFolderADLs();
 
+
+		/*
+		 *  We need to force regeneration (which leads to lose incremental compilation advantages... :( )
+		 *  In order for:
+		 *  - The Container not to be reloaded with already existing @TestSuite-s, leading to duplicates
+		 *  (we don't check for consistency yet)
+		 *  - The @TestSuites not to be reloaded with already added exported test interfaces (with their internal
+		 *  dual interface, membrane code with stubs when needed, and internal binding...)
+		 *  (as previously we want to avoid duplicates since we only ADD elements (no diff/remove), and our check
+		 *  for no outer interface on @TestSuite-s would fail)
+		 *  - The MindUnitSuiteDefinition has to be regenerated according to @TestSuite-s and @Test-s,
+		 *  as the C implementation and client interfaces may change according to what we find
+		 *  - The Container also has already been completed with according bindings at the previous compile time
+		 *  and we again do not check for consistency
+		 *  
+		 *  TODO: consider incremental compilation solutions ? What we only want to reload every time are 
+		 *  the components containing the user content and not the user files (only when there is change there...).
+		 *  How to discriminate such behavior ?
+		 */
+		ForceRegenContextHelper.setForceRegen(compilerContext, true);
+
 		/*
 		 * Then parse/load them (but stay at CHECK_ADL stage).
 		 * We obtain a list of Definition-s
@@ -269,6 +291,8 @@ public class Launcher {
 		for (String currentADL : testFolderADLList) {
 			List<Object> l;
 			try {
+				// Here the components may be reloaded from the incremental compilation cache 
+				// if no modification happened
 				l = adlCompiler.compile(currentADL, "", CompilationStage.CHECK_ADL, compilerContext);
 				if (l != null && !l.isEmpty()) {
 					for (Object currObj : l) {
@@ -392,7 +416,7 @@ public class Launcher {
 		 * @Singleton, we could reference CALLs (no "this") and create according bindings ?
 		 * A bit heavy but more architecture-friendly. And may simplify function names calculations.
 		 */
-		logger.info("Generating Suite source implementation");
+		logger.info("@TestSuites introspection - Find @Tests - Export test interfaces - Create internal bindings in the @TestSuites");
 
 		// prepare test cases list
 		List<TestCase> currItfValidTestCases = null;
@@ -666,12 +690,12 @@ public class Launcher {
 											+ "_" + currTypeItf.getName();
 
 									currTestInfo = new TestInfo(structName, currItfValidTestCases);
-									
+
 									// we want to be able to discriminate Mind Suites where multiple tester component instances provide the same interface
 									String fullSuiteDescription = description 					// @TestSuite description
 											+ " - " + currComp.getName()	// sub-comp
 											+ " - " + currTypeItf.getName();	// itf
-									
+
 									testSuites.add(
 											new Suite(fullSuiteDescription,
 													currItfInitFuncName, currItfInitMethName,
@@ -689,6 +713,9 @@ public class Launcher {
 				}
 			}
 		}
+		
+		logger.info("Generating Suite source implementation");
+		
 		try {
 			suiteCSrcGenerator.visit(testSuites, compilerContext);
 		} catch (ADLException e1) {
@@ -696,7 +723,7 @@ public class Launcher {
 			e1.printStackTrace();
 		}
 
-		logger.info("Adding the Suite to the test container");
+		logger.info("Creating the Suite component");
 
 		/*
 		 * Create a primitive with the source file as implementation
@@ -712,15 +739,21 @@ public class Launcher {
 			// will never happen since the exception is raised only when you try to put an annotation two times on a definition... which is not our case
 		}
 		// the newPrimitiveDefinitionNode enforces ImplementationContainer.class compatibility
+		
+		logger.info("Adding unit-gen/mindUnitSuite.c as source");
+		
 		ImplementationContainer mindUnitSuiteDefAsImplCtr = (ImplementationContainer) mindUnitSuiteDefinition;
 		Source mindUnitSuiteSource = ASTHelper.newSource(nodeFactoryItf);
 		mindUnitSuiteSource.setPath(BasicSuiteSourceGenerator.getSuiteFileName());
 		mindUnitSuiteDefAsImplCtr.addSource(mindUnitSuiteSource);
-
+		
 		/*
 		 * Create the good client interfaces matching the test ones (need to store the latter !)
 		 * And create bindings from the suite client interfaces to the @TestSuite-s
 		 */
+		
+		logger.info("Creating client interfaces on the Suite component");
+		
 		// the newPrimitiveDefinitionNode enforces ImplementationContainer.class compatibility
 		InterfaceContainer mindUnitSuiteDefAsItfCtr = (InterfaceContainer) mindUnitSuiteDefinition;
 		for (String currItfInstanceName : suiteClientItfsNameSignature.keySet()) {
@@ -743,6 +776,8 @@ public class Launcher {
 			mindUnitSuiteDefAsItfCtr.addInterface(newSuiteCltItf);
 		}
 
+		logger.info("Adding the Suite to the test container");
+		
 		/*
 		 *Then add the "Suite" component to the test container
 		 */
@@ -754,6 +789,8 @@ public class Launcher {
 		ASTHelper.setResolvedComponentDefinition(mindUnitSuiteComp, mindUnitSuiteDefinition);
 		((ComponentContainer) containerDef).addComponent(mindUnitSuiteComp);
 
+		logger.info("Creating bindings in the container, from generated Suite component interfaces to @TestSuite-s exported test interfaces");
+		
 		assert containerDef instanceof BindingContainer;
 		BindingContainer containerDefAsBdgCtr = (BindingContainer) containerDef;
 		for (Binding currBinding : containerBindings) {
