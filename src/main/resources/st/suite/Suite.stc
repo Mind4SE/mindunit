@@ -9,6 +9,8 @@ Suite(suiteDefinitions) ::= <<
 
 <TestFunctionsPrototypesDeclaration(suiteDefinitions=suiteDefinitions)>
 
+<TestFunctionsDeclaration(suiteDefinitions=suiteDefinitions)>
+
 <TestsInfosDeclaration(suiteDefinitions=suiteDefinitions)>
 
 <SuitesDeclaration(suiteDefinitions=suiteDefinitions)>
@@ -49,6 +51,53 @@ TestInfoStructDeclaration(testCase) ::= <<
 { "<testCase.name>", <testCase.function> },
 >>
 
+// ------------------- Test functions (CALL wrappers) -------------------
+
+TestFunctionsDeclaration(suiteDefinitions) ::= <<
+/* Start relay functions declarations  */
+<suiteDefinitions:TestSuiteFunctionsDeclaration(suiteDefinition=it); separator="\n">
+/* End relay functions declarations  */
+>>
+
+TestSuiteFunctionsDeclaration(suiteDefinition) ::= <<
+// Suite: <suiteDefinition.description>
+<DeclareSuiteInitFunc(suiteDefinition)>
+<DeclareSuiteCleanupFunc(suiteDefinition)>
+<TestFunctionsDeclaration1(testInfo=suiteDefinition.testInfo, clientItfName=suiteDefinition.clientItf)>
+
+>>
+
+DeclareSuiteInitFunc(suiteDefinition) ::= <<
+<if (suiteDefinition.initFunc)>
+// Init
+int <suiteDefinition.initFunc>() {
+  return CALL(<suiteDefinition.clientItf>, <suiteDefinition.initMeth>)();
+}
+<endif>
+>>
+
+DeclareSuiteCleanupFunc(suiteDefinition) ::= <<
+<if (suiteDefinition.cleanupFunc)>
+// Cleanup
+int <suiteDefinition.cleanupFunc>() {
+  return CALL(<suiteDefinition.clientItf>, <suiteDefinition.cleanupMeth>)();
+}
+<endif>
+>>
+
+TestFunctionsDeclaration1(testInfo, clientItfName) ::= <<
+// Tests
+<testInfo.testCases:TestFunctionsDeclaration2(testCase=it, clientItfName=clientItfName); separator="\n">
+>>
+
+TestFunctionsDeclaration2(testCase, clientItfName) ::= <<
+void <testCase.function>() {
+  CALL(<clientItfName>, <testCase.clientMeth>)();
+}
+>>
+
+// ------------------- Test function PROTOTYPES -------------------
+
 TestFunctionsPrototypesDeclaration(suiteDefinitions) ::= <<
 /* Start prototype declarations  */
 <suiteDefinitions:TestSuitePrototypesDeclaration(suiteDefinition=it); separator="\n">
@@ -57,23 +106,23 @@ TestFunctionsPrototypesDeclaration(suiteDefinitions) ::= <<
 
 TestSuitePrototypesDeclaration(suiteDefinition) ::= <<
 // Suite: <suiteDefinition.description>
-<DeclareSuiteInitFunc(suiteDefinition)>
-<DeclareSuiteCleanupFunc(suiteDefinition)>
+<DeclareSuiteInitFuncPrototype(suiteDefinition)>
+<DeclareSuiteCleanupFuncPrototype(suiteDefinition)>
 <TestFunctionsPrototypesDeclaration1(testInfo=suiteDefinition.testInfo)>
 
 >>
 
-DeclareSuiteInitFunc(suiteDefinition) ::= <<
+DeclareSuiteInitFuncPrototype(suiteDefinition) ::= <<
 <if (suiteDefinition.initFunc)>
 // Init
-extern int <suiteDefinition.initFunc>(void);
+int <suiteDefinition.initFunc>(void);
 <endif>
 >>
 
-DeclareSuiteCleanupFunc(suiteDefinition) ::= <<
+DeclareSuiteCleanupFuncPrototype(suiteDefinition) ::= <<
 <if (suiteDefinition.cleanupFunc)>
 // Cleanup
-extern int <suiteDefinition.cleanupFunc>(void);
+int <suiteDefinition.cleanupFunc>(void);
 <endif>
 >>
 
@@ -83,7 +132,7 @@ TestFunctionsPrototypesDeclaration1(testInfo) ::= <<
 >>
 
 TestFunctionsPrototypesDeclaration2(testCase) ::= <<
-extern void <testCase.function>(void);
+void <testCase.function>(void);
 >>
 
 }$$

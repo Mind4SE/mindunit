@@ -22,6 +22,8 @@
 
 package org.ow2.mind.unit;
 
+import static org.ow2.mind.adl.membrane.ControllerInterfaceDecorationHelper.setReferencedInterface;
+
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
@@ -30,11 +32,11 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -47,21 +49,37 @@ import org.objectweb.fractal.adl.ADLException;
 import org.objectweb.fractal.adl.CompilerError;
 import org.objectweb.fractal.adl.Definition;
 import org.objectweb.fractal.adl.Loader;
+import org.objectweb.fractal.adl.Node;
 import org.objectweb.fractal.adl.NodeFactory;
 import org.objectweb.fractal.adl.error.Error;
 import org.objectweb.fractal.adl.error.GenericErrors;
 import org.objectweb.fractal.adl.interfaces.Interface;
 import org.objectweb.fractal.adl.interfaces.InterfaceContainer;
+import org.objectweb.fractal.adl.merger.MergeException;
+import org.objectweb.fractal.adl.merger.NodeMerger;
 import org.objectweb.fractal.adl.types.TypeInterface;
+import org.objectweb.fractal.adl.types.TypeInterfaceUtil;
 import org.objectweb.fractal.adl.util.FractalADLLogManager;
 import org.ow2.mind.ADLCompiler;
 import org.ow2.mind.ADLCompiler.CompilationStage;
+import org.ow2.mind.adl.annotation.predefined.Singleton;
+import org.ow2.mind.adl.annotations.DumpASTAnnotationProcessor;
 import org.ow2.mind.adl.ast.ASTHelper;
+import org.ow2.mind.adl.ast.Binding;
+import org.ow2.mind.adl.ast.BindingContainer;
 import org.ow2.mind.adl.ast.Component;
 import org.ow2.mind.adl.ast.ComponentContainer;
 import org.ow2.mind.adl.ast.DefinitionReference;
 import org.ow2.mind.adl.ast.ImplementationContainer;
+import org.ow2.mind.adl.ast.MindInterface;
 import org.ow2.mind.adl.ast.Source;
+import org.ow2.mind.adl.idl.InterfaceDefinitionDecorationHelper;
+import org.ow2.mind.adl.membrane.ControllerInterfaceDecorationHelper;
+import org.ow2.mind.adl.membrane.ast.Controller;
+import org.ow2.mind.adl.membrane.ast.ControllerContainer;
+import org.ow2.mind.adl.membrane.ast.ControllerInterface;
+import org.ow2.mind.adl.membrane.ast.InternalInterfaceContainer;
+import org.ow2.mind.adl.membrane.ast.MembraneASTHelper;
 import org.ow2.mind.annotation.AnnotationHelper;
 import org.ow2.mind.cli.CmdFlag;
 import org.ow2.mind.cli.CmdOption;
@@ -147,11 +165,12 @@ public class Launcher {
 	protected ErrorManager 			errorManager;
 	protected ADLCompiler 			adlCompiler;
 
-	protected NodeFactory			nodeFactory;
+	protected NodeFactory			nodeFactoryItf;
 	protected SuiteSourceGenerator 	suiteCSrcGenerator;
 	protected Loader 				loaderItf;
 	protected IDLLoader 			idlLoaderItf;
 	protected OutputFileLocator 	outputFileLocatorItf;
+	protected NodeMerger 			nodeMergerItf;
 
 	protected void init(final String... args) throws InvalidCommandLineException {
 
@@ -330,8 +349,10 @@ public class Launcher {
 		 */
 		logger.info("Adding TestCases to the MindUnit container");
 		for (Definition currTestDef : validTestsList) {
-			DefinitionReference currTestDefRef = ASTHelper.newDefinitionReference(nodeFactory, currTestDef.getName());
-			Component currComp = ASTHelper.newComponent(nodeFactory, currTestDef.getName().replace(".", "_") + "Instance", currTestDefRef);
+			DefinitionReference currTestDefRef = ASTHelper.newDefinitionReference(nodeFactoryItf, currTestDef.getName());
+			ASTHelper.setResolvedDefinition(currTestDefRef, currTestDef);
+			Component currComp = ASTHelper.newComponent(nodeFactoryItf, currTestDef.getName().replace(".", "_") + "Instance", currTestDefRef);
+			currComp.setDefinitionReference(currTestDefRef);
 			ASTHelper.setResolvedComponentDefinition(currComp, currTestDef);
 			((ComponentContainer) containerDef).addComponent(currComp);
 		}
@@ -377,12 +398,38 @@ public class Launcher {
 		List<TestCase> currItfValidTestCases = null;
 		TestInfo currTestInfo = null;
 
+		// prepare to store information needed to create client interfaces on our Suite component
+		Map<String, String> suiteClientItfsNameSignature = new LinkedHashMap<String, String>();
+
+
+		// prepare to store bindings to be created from suite to @TestSuite-s interfaces in the container
+		// note: only targets will be initialized and the source component name will be configured at addBinding time
+		List<Binding> containerBindings = new ArrayList<Binding>();
 
 		// build the Suite list
 		for (Definition currDef : validTestsList) {
 			String description = (AnnotationHelper.getAnnotation(currDef, TestSuite.class)).value;
 			if (description == null)
 				description = currDef.getName();
+
+			assert currDef instanceof InterfaceContainer;
+			InterfaceContainer currDefAsItfCtr = (InterfaceContainer) currDef;
+
+			if (currDefAsItfCtr.getInterfaces().length > 0) {
+				logger.warning("While handling @TestSuite + " + currDef.getName() + ": A test suite must not have any external interface - skipping");
+				continue;
+			}
+
+			assert currDef instanceof BindingContainer;
+			BindingContainer currDefAsBdgCtr = (BindingContainer) currDef;
+
+			// as we will want to export interfaces and create internal bindings, we need
+			// to create the dual internal interface and have the definition as an InternalInterfaceContainer
+			// inspired from the CompositeInternalInterfaceLoader
+			turnToInternalInterfaceContainer(currDef);
+			InternalInterfaceContainer currDefAsInternalItfCtr = (InternalInterfaceContainer) currDef;
+			turnToControllerContainer(currDef);
+			ControllerContainer currDefAsCtrlCtr = (ControllerContainer) currDef;
 
 			if (currDef instanceof ComponentContainer) {
 				// handle all sub-components (no recursion)
@@ -393,33 +440,41 @@ public class Launcher {
 						if (currCompDef instanceof InterfaceContainer) {
 							// handle sub-component server interfaces, find the list of @Test-annotated methods
 							InterfaceContainer currItfContainer = (InterfaceContainer) currCompDef;
-							
+
 							for (Interface currItf : currItfContainer.getInterfaces()) { // start for all interfaces
-								
+
 								// re-init at every loop
 								String currItfInitFuncName = null;
+								String currItfInitMethName = null;
 								String currItfCleanupFuncName = null;
+								String currItfCleanupMethName = null;
 								currItfValidTestCases = new ArrayList<TestCase>();
-								
+								String itfSignature = null;
+								String itfName = currItf.getName();
+								String itfExportName = null;
+								InterfaceDefinition currItfDef = null;
+
 								// should be everywhere isn't it ?
 								assert currItf instanceof TypeInterface;
 								TypeInterface currTypeItf = (TypeInterface) currItf;
-								
+
 								// we only are concerned by server interfaces
 								if (currTypeItf.getRole().equals(TypeInterface.SERVER_ROLE)) {
-									
-									String itfSignature = currTypeItf.getSignature();
+
+									boolean hasTests = false;
+									itfSignature = currTypeItf.getSignature();
 									// now get the itf methods
 									IDL currIDL = idlLoaderItf.load(itfSignature, compilerContext);
 									assert currIDL instanceof InterfaceDefinition;
-									InterfaceDefinition currItfDef = (InterfaceDefinition) currIDL;
+									currItfDef = (InterfaceDefinition) currIDL;
+
 									for (Method currMethod : currItfDef.getMethods()) {
 										boolean isTest 		= AnnotationHelper.getAnnotation(currMethod, Test.class) != null;
 										boolean isInit 		= AnnotationHelper.getAnnotation(currMethod, Init.class) != null;
 										boolean isCleanup 	= AnnotationHelper.getAnnotation(currMethod, Cleanup.class) != null;
 
 										// Maybe replace the algorithm for a switch-case ?
-										
+
 										// ^ = XOR
 										if (isTest ^ isInit ^ isCleanup) {
 
@@ -446,20 +501,43 @@ public class Launcher {
 													continue;
 												}
 
-												// FIXME: maybe calculate the method name in a more elegant way...
-												String cMethodName = "__component_" + currCompDef.getName().replace(".", "_")
-														+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
+												// compute the relay function name we'll provide to CUnit that will CALL the test
+												// we compute complex names to avoid clashes (as a tester is not needed to be @Singleton)
+												String cRelayFuncName = "__cunit_relay_"		// prefix
+														+ currDef.getName().substring(currDef.getName().lastIndexOf(".") + 1).replace(".", "_")	// the @TestSuite simple definition name
+														+ "_" + currComp.getName()				// sub-component instance
+														+ "_" + currTypeItf.getName()			// interface instance
+														+ "_" + currMethod.getName();			// method instance
 
-												currItfValidTestCases.add(new TestCase(testDescription, cMethodName));
+												// remember which interfaces should be instantiated as clients on the Suite component
+												itfExportName = currDef.getName().replace(".", "_") + "_" + currComp.getName() + "_" + currTypeItf.getName();
+												suiteClientItfsNameSignature.put(
+														itfExportName,
+														itfSignature);
+
+												// create the test case
+												currItfValidTestCases.add(new TestCase(testDescription, cRelayFuncName, currMethod.getName()));
+
+												// need to know if we have to export the interface to the surrounding @TestSuite composite
+												hasTests = true;
+
 											} else if (isInit) {
 												if (currItfInitFuncName != null) {
 													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": An @Init method was already defined - Skipping");
 													continue;
 												}
-												// FIXME: maybe calculate the method name in a more elegant way...
-												currItfInitFuncName = "__component_" + currCompDef.getName().replace(".", "_")
-														+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
-												
+
+												// compute the relay function name we'll provide to CUnit that will CALL the test
+												// we compute complex names to avoid clashes (as a tester is not needed to be @Singleton)
+												currItfInitFuncName = "__cunit_relay_"			// prefix
+														+ currDef.getName().substring(currDef.getName().lastIndexOf(".") + 1).replace(".", "_") 	// the @TestSuite definition name
+														+ "_" + currComp.getName()				// sub-component instance
+														+ "_" + currTypeItf.getName()			// interface instance
+														+ "_" + currMethod.getName();			// method instance
+
+												// simple name for the CALL
+												currItfInitMethName = currMethod.getName();
+
 												// return type should be void
 												Type methodType = currMethod.getType();
 												if (!(methodType instanceof PrimitiveType
@@ -473,16 +551,23 @@ public class Launcher {
 													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method arguments must be \"(void)\" - Skipping method");
 													continue;
 												}
-												
+
 											} else if (isCleanup) {
 												if (currItfCleanupFuncName != null) {
 													logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": An @Init method was already defined - Skipping");
 													continue;
 												}
-												// FIXME: maybe calculate the method name in a more elegant way...
-												currItfCleanupFuncName = "__component_" + currCompDef.getName().replace(".", "_")
-														+ "_" + currTypeItf.getName() + "_" + currMethod.getName();
-												
+												// compute the relay function name we'll provide to CUnit that will CALL the test
+												// we compute complex names to avoid clashes (as a tester is not needed to be @Singleton)
+												currItfCleanupFuncName = "__cunit_relay_"			// prefix
+														+ currDef.getName().substring(currDef.getName().lastIndexOf(".") + 1).replace(".", "_") 	// the @TestSuite definition name
+														+ "_" + currComp.getName()				// sub-component instance
+														+ "_" + currTypeItf.getName()			// interface instance
+														+ "_" + currMethod.getName();			// method instance
+
+												// simple name for the CALL
+												currItfCleanupMethName = currMethod.getName();
+
 												// return type should be void
 												Type methodType = currMethod.getType();
 												if (!(methodType instanceof PrimitiveType
@@ -503,20 +588,98 @@ public class Launcher {
 											logger.warning("@Init, @Test and @Cleanup are mutually exclusive - Please clarify " + currItfDef.getName() + "#" + currMethod.getName() + " role - Skipping method");
 											continue;
 										}
+									} // end for all methods
+
+									/*
+									 * Export interface containing @Test to the surrounding @TestSuite
+									 * And create the matching internal binding
+									 * And prepare the outer binding (in the container) from the generated Suite component to the current @TestSuite
+									 */
+									if (hasTests) {
+										MindInterface newSuiteServerItf = ASTHelper.newServerInterfaceNode(nodeFactoryItf, itfExportName, itfSignature);
+										InterfaceDefinitionDecorationHelper.setResolvedInterfaceDefinition(newSuiteServerItf, currItfDef);
+
+										//logger.info("Creating " + newSuiteServerItf.getName() + " interface instance for definition " + currDef.getName() + " with interface definition " + currItfDef.getName());
+										currDefAsItfCtr.addInterface(newSuiteServerItf);
+
+										// also create the INTERNAL interface
+										// inspired by the CompositeInternalInterfaceLoader
+										TypeInterface newSuiteServerInternalClientItf = getInternalInterface(newSuiteServerItf);
+										InterfaceDefinitionDecorationHelper.setResolvedInterfaceDefinition((TypeInterface) newSuiteServerInternalClientItf, currItfDef);
+										currDefAsInternalItfCtr.addInternalInterface(newSuiteServerInternalClientItf);
+
+
+										//-- the following is for the @TestSuite membrane (_ctrl_impl.c) to have
+										// it's "interface delegator" generated
+										ControllerInterfaceDecorationHelper.setDelegatedInterface(newSuiteServerInternalClientItf,
+												newSuiteServerItf);
+										ControllerInterfaceDecorationHelper.setDelegatedInterface(newSuiteServerItf,
+												newSuiteServerInternalClientItf);
+
+										// add controller
+										Controller ctrl = newControllerNode();
+										ControllerInterface externalCtrlItf = newControllerInterfaceNode(newSuiteServerItf.getName(), false);
+										ControllerInterface internalCtrlItf = newControllerInterfaceNode(newSuiteServerItf.getName(), true);
+										ctrl.addControllerInterface(externalCtrlItf);
+										ctrl.addControllerInterface(internalCtrlItf);
+										ctrl.addSource(newSourceNode("InterfaceDelegator"));
+										currDefAsCtrlCtr.addController(ctrl);
+
+										setReferencedInterface(externalCtrlItf, newSuiteServerItf);
+
+										// -- create internal binding
+										Binding newInternalBinding = ASTHelper.newBinding(nodeFactoryItf);
+										newInternalBinding.setFromComponent(Binding.THIS_COMPONENT);
+										newInternalBinding.setFromInterface(itfExportName);
+										// TODO: Support collections ? // setFromInterfaceNumber
+										newInternalBinding.setToComponent(currComp.getName());
+										newInternalBinding.setToInterface(itfName);
+										// TODO: Support collections ?
+
+										// add it to the @TestSuite composite definition
+										currDefAsBdgCtr.addBinding(newInternalBinding);
+										//logger.info("Created binding from the surrounding @TestSuite to the sub-component interface");
+
+										// -- create outer binding
+										Binding newOuterBinding = ASTHelper.newBinding(nodeFactoryItf);
+
+										// no "setFromComponent" since it will be completed later with the Suite instance name
+										// itf name won't change though
+										newOuterBinding.setFromInterface(itfExportName);
+										// TODO: Support collections ? // setFromInterfaceNumber
+										// target instance name is convention-based (see addComponents to the container way before in this code)
+										newOuterBinding.setToComponent(currDef.getName().replace(".", "_") + "Instance");
+										// same in client and server
+										newOuterBinding.setToInterface(itfExportName);
+										// TODO: Support collections ? // setFromInterfaceNumber
+
+										containerBindings.add(newOuterBinding);
 									}
+
 								} // end if itf is server
-								
+
 								// build the test suite
 								if (!currItfValidTestCases.isEmpty()) {
-									if (!ASTHelper.isSingleton(currCompDef)) {
-										logger.warning("Component " + currCompDef.getName() + " must be @Singleton to host @Test-s - skip !");
-										break;
-									}
+									String structName = "_cu_ti_"
+											+ currDef.getName().substring(currDef.getName().lastIndexOf(".") + 1).replace(".", "_") 	// the @TestSuite definition name
+											+ "_" + currComp.getName()				// sub-component instance
+											+ "_" + currTypeItf.getName();
+
+									currTestInfo = new TestInfo(structName, currItfValidTestCases);
 									
-									currTestInfo = new TestInfo(currTypeItf.getName(), currItfValidTestCases);
-									testSuites.add(new Suite(description + " - " + currTypeItf.getName(), currItfInitFuncName, currItfCleanupFuncName, currTestInfo));
+									// we want to be able to discriminate Mind Suites where multiple tester component instances provide the same interface
+									String fullSuiteDescription = description 					// @TestSuite description
+											+ " - " + currComp.getName()	// sub-comp
+											+ " - " + currTypeItf.getName();	// itf
+									
+									testSuites.add(
+											new Suite(fullSuiteDescription,
+													currItfInitFuncName, currItfInitMethName,
+													currItfCleanupFuncName, currItfCleanupMethName,
+													currTestInfo,
+													itfExportName));
 								}
-								
+
 							} // end for all interfaces
 						}
 					} catch (ADLException e) {
@@ -538,20 +701,68 @@ public class Launcher {
 		/*
 		 * Create a primitive with the source file as implementation
 		 */
-		Definition mindUnitSuiteDefinition = ASTHelper.newPrimitiveDefinitionNode(nodeFactory, "MindUnitSuiteDefinition", (DefinitionReference[]) null);
+		Definition mindUnitSuiteDefinition = ASTHelper.newPrimitiveDefinitionNode(nodeFactoryItf, "MindUnitSuiteDefinition", (DefinitionReference[]) null);
+		// it has to be a @Singleton for our test "void func(void) { CALL(itf, meth)(); }" functions to be able to enter the Mind world (no 'mind_this')
+		// both following methods are needed since we won't trigger the Singleton Annotation Processor, and the struct definitions rely on both
+		// ASTHelper.isSingleton doesn't check the "singleton decoration" by the way but the Annotation and is used to name singleton instances.
+		ASTHelper.setSingletonDecoration(mindUnitSuiteDefinition);
+		try {
+			AnnotationHelper.addAnnotation(mindUnitSuiteDefinition, new Singleton());
+		} catch (ADLException e1) {
+			// will never happen since the exception is raised only when you try to put an annotation two times on a definition... which is not our case
+		}
 		// the newPrimitiveDefinitionNode enforces ImplementationContainer.class compatibility
 		ImplementationContainer mindUnitSuiteDefAsImplCtr = (ImplementationContainer) mindUnitSuiteDefinition;
-		Source mindUnitSuiteSource = ASTHelper.newSource(nodeFactory);
+		Source mindUnitSuiteSource = ASTHelper.newSource(nodeFactoryItf);
 		mindUnitSuiteSource.setPath(BasicSuiteSourceGenerator.getSuiteFileName());
 		mindUnitSuiteDefAsImplCtr.addSource(mindUnitSuiteSource);
 
 		/*
+		 * Create the good client interfaces matching the test ones (need to store the latter !)
+		 * And create bindings from the suite client interfaces to the @TestSuite-s
+		 */
+		// the newPrimitiveDefinitionNode enforces ImplementationContainer.class compatibility
+		InterfaceContainer mindUnitSuiteDefAsItfCtr = (InterfaceContainer) mindUnitSuiteDefinition;
+		for (String currItfInstanceName : suiteClientItfsNameSignature.keySet()) {
+			String currItfSignature = suiteClientItfsNameSignature.get(currItfInstanceName);
+
+			// we get the InterfaceDefinition from the compiler's cache (instead of creating a new map...)
+			IDL currIDL = null;
+			try {
+				currIDL = idlLoaderItf.load(currItfSignature, compilerContext);
+			} catch (ADLException e) {
+				logger.severe("Could not load " + currItfSignature + " interface ! - Exit to prevent C suite file inconsistency !");
+				System.exit(1);
+			}
+
+			MindInterface newSuiteCltItf = ASTHelper.newClientInterfaceNode(nodeFactoryItf, currItfInstanceName, currItfSignature);
+
+			assert currIDL instanceof InterfaceDefinition;
+			InterfaceDefinitionDecorationHelper.setResolvedInterfaceDefinition(newSuiteCltItf, (InterfaceDefinition) currIDL);
+
+			mindUnitSuiteDefAsItfCtr.addInterface(newSuiteCltItf);
+		}
+
+		/*
 		 *Then add the "Suite" component to the test container
 		 */
-		DefinitionReference mindUnitSuiteDefRef = ASTHelper.newDefinitionReference(nodeFactory, mindUnitSuiteDefinition.getName());
-		Component mindUnitSuiteComp = ASTHelper.newComponent(nodeFactory, mindUnitSuiteDefRef.getName().replace(".", "_") + "Instance", mindUnitSuiteDefRef);
+		DefinitionReference mindUnitSuiteDefRef = ASTHelper.newDefinitionReference(nodeFactoryItf, mindUnitSuiteDefinition.getName());
+		ASTHelper.setResolvedDefinition(mindUnitSuiteDefRef, mindUnitSuiteDefinition);
+		String mindUnitSuiteInstanceName = mindUnitSuiteDefRef.getName().replace(".", "_") + "Instance";
+		Component mindUnitSuiteComp = ASTHelper.newComponent(nodeFactoryItf, mindUnitSuiteInstanceName, mindUnitSuiteDefRef);
+		mindUnitSuiteComp.setDefinitionReference(mindUnitSuiteDefRef);
 		ASTHelper.setResolvedComponentDefinition(mindUnitSuiteComp, mindUnitSuiteDefinition);
 		((ComponentContainer) containerDef).addComponent(mindUnitSuiteComp);
+
+		assert containerDef instanceof BindingContainer;
+		BindingContainer containerDefAsBdgCtr = (BindingContainer) containerDef;
+		for (Binding currBinding : containerBindings) {
+			currBinding.setFromComponent(mindUnitSuiteInstanceName);
+			containerDefAsBdgCtr.addBinding(currBinding);
+		}
+
+		// Debug
+		//DumpASTAnnotationProcessor.showDefinitionContent(containerDef);
 
 		/*
 		 * Then compile
@@ -655,11 +866,12 @@ public class Launcher {
 		adlCompiler = injector.getInstance(ADLCompiler.class);
 
 		// TODO: check if cleanup/moving to another class is needed ?
-		nodeFactory = injector.getInstance(NodeFactory.class);
+		nodeFactoryItf = injector.getInstance(NodeFactory.class);
 		suiteCSrcGenerator = injector.getInstance(SuiteSourceGenerator.class);
 		loaderItf = injector.getInstance(Loader.class);
 		idlLoaderItf = injector.getInstance(IDLLoader.class);
 		outputFileLocatorItf = injector.getInstance(OutputFileLocator.class);
+		nodeMergerItf = injector.getInstance(NodeMerger.class);
 	}
 
 	protected void initInjector(final PluginManager pluginManager,
@@ -763,6 +975,62 @@ public class Launcher {
 	// ---------------------------------------------------------------------------
 	// Utility methods
 	// ---------------------------------------------------------------------------
+
+	//-- new utility methods imported from CompositeInterfaceLoader & AbstractMembraneLoader since there is no helper for this
+	protected TypeInterface getInternalInterface(final Interface itf) {
+		if (!(itf instanceof TypeInterface)) {
+			throw new CompilerError(GenericErrors.INTERNAL_ERROR, itf,
+					"Interface is not a TypeInterface");
+		}
+
+		// clone external interface to create its dual internal interface.
+		final TypeInterface internalItf;
+		try {
+			internalItf = (TypeInterface) nodeMergerItf.merge(
+					nodeFactoryItf.newNode("internalInterface",
+							TypeInterface.class.getName()), itf, null);
+			internalItf.astSetSource(itf.astGetSource());
+		} catch (final ClassNotFoundException e) {
+			throw new CompilerError(GenericErrors.INTERNAL_ERROR, e,
+					"Node factory error");
+		} catch (final MergeException e) {
+			throw new CompilerError(GenericErrors.INTERNAL_ERROR, e,
+					"Node merge error");
+		}
+		if (TypeInterfaceUtil.isClient(itf))
+			internalItf.setRole(TypeInterface.SERVER_ROLE);
+		else
+			internalItf.setRole(TypeInterface.CLIENT_ROLE);
+
+		return internalItf;
+	}
+
+	protected Controller newControllerNode() {
+		return MembraneASTHelper.newControllerNode(nodeFactoryItf);
+	}
+
+	protected ControllerInterface newControllerInterfaceNode(
+			final String itfName, final boolean isInternal) {
+		return MembraneASTHelper.newControllerInterfaceNode(nodeFactoryItf,
+				itfName, isInternal);
+	}
+
+	protected Source newSourceNode(final String path) {
+		return MembraneASTHelper.newSourceNode(nodeFactoryItf, path);
+	}
+
+	protected ControllerContainer turnToControllerContainer(final Node node) {
+		return MembraneASTHelper.turnToControllerContainer(node, nodeFactoryItf,
+				nodeMergerItf);
+	}
+
+	protected InternalInterfaceContainer turnToInternalInterfaceContainer(
+			final Node node) {
+		return MembraneASTHelper.turnToInternalInterfaceContainer(node,
+				nodeFactoryItf, nodeMergerItf);
+	}
+
+	//-- original utility methods
 
 	private void printExtensionPoints(final PluginManager pluginManager,
 			final PrintStream out) {
