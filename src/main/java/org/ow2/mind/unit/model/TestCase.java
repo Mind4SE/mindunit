@@ -28,6 +28,12 @@ public class TestCase {
 	public String function;
 	public String clientMeth;
 	
+	/**
+	 * Each name - function pair is equivalent to a CU_TestInfo row.
+	 * @param name User description of the current test function.
+	 * @param function The relay function name (its implementation CALLs the Suite client interface)
+	 * @param clientMeth The method name in the according interface (the interface notion is mapped to CU_TestInfo)
+	 */
 	public TestCase(String name, String function, String clientMeth) {
 		this.name = name;
 		this.function = function;
