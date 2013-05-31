@@ -64,7 +64,6 @@ import org.ow2.mind.ADLCompiler;
 import org.ow2.mind.ADLCompiler.CompilationStage;
 import org.ow2.mind.ForceRegenContextHelper;
 import org.ow2.mind.adl.annotation.predefined.Singleton;
-//import org.ow2.mind.adl.annotations.DumpASTAnnotationProcessor;
 import org.ow2.mind.adl.ast.ASTHelper;
 import org.ow2.mind.adl.ast.Binding;
 import org.ow2.mind.adl.ast.BindingContainer;
@@ -93,7 +92,6 @@ import org.ow2.mind.cli.Options;
 import org.ow2.mind.cli.OutPathOptionHandler;
 import org.ow2.mind.cli.PrintStackTraceOptionHandler;
 import org.ow2.mind.cli.SrcPathOptionHandler;
-import org.ow2.mind.cli.StageOptionHandler;
 import org.ow2.mind.error.ErrorManager;
 import org.ow2.mind.idl.IDLLoader;
 import org.ow2.mind.idl.ast.IDL;
@@ -119,6 +117,7 @@ import org.ow2.mind.unit.st.SuiteSourceGenerator;
 
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+//import org.ow2.mind.adl.annotations.DumpASTAnnotationProcessor;
 
 public class Launcher {
 
@@ -155,7 +154,7 @@ public class Launcher {
 
 	protected List<String>			testFolderADLList 		= new ArrayList<String>();
 
-	protected List<Definition>		validTestSuitesDefinitionList 			= new ArrayList<Definition>();
+	protected List<Definition>		validTestSuitesDefsList	= new ArrayList<Definition>();
 	protected List<Suite>			testSuites 				= new ArrayList<Suite>();
 
 	protected Map<Object, Object> 	compilerContext			= new HashMap<Object, Object>();
@@ -246,7 +245,7 @@ public class Launcher {
 		initInjector(pluginManager, compilerContext);
 
 		initCompiler();
-		
+
 		/*
 		 *  We need to force regeneration (which leads to lose incremental compilation advantages... :( )
 		 *  In order for:
@@ -270,7 +269,7 @@ public class Launcher {
 	}
 
 	private void constructTestApplication() {
-		
+
 		// Build list of ADL files
 		listTestFolderADLs();
 
@@ -280,7 +279,7 @@ public class Launcher {
 		 */
 		filterValidTestSuites();
 
-		if (validTestSuitesDefinitionList.isEmpty()) {
+		if (validTestSuitesDefsList.isEmpty()) {
 			logger.info("No @TestSuite found: exit");
 			System.exit(0);
 		}
@@ -294,9 +293,6 @@ public class Launcher {
 
 		/*
 		 * Add all test cases to the test container as sub-component instances
-		 * TODO: FIXME: if the application was already compiled and the container re-loaded pre-filled,
-		 * we obtain duplicates of sub-components, and that leads to compilation errors !
-		 * Idea: force regen of container ? check its sub-components ?
 		 */
 		logger.info("Adding TestSuites to the MindUnit container");
 
@@ -327,7 +323,7 @@ public class Launcher {
 		List<Binding> containerBindings = new ArrayList<Binding>();
 
 		// build the Suite list
-		for (Definition currDef : validTestSuitesDefinitionList)
+		for (Definition currDef : validTestSuitesDefsList)
 			// note: at each iteration the lists are growing
 			// note2: the suite definition will be modified to export interfaces containing @Test-s
 			introspectAndPrepareTestSuite(currDef, suiteClientItfsNameSignature, containerBindings);
@@ -527,11 +523,14 @@ public class Launcher {
 					// handle sub-component server interfaces, find the list of @Test-annotated methods
 					InterfaceContainer currItfContainer = (InterfaceContainer) currCompDef;
 
-					for (Interface currItf : currItfContainer.getInterfaces())
+					for (Interface currItf : currItfContainer.getInterfaces()) {
 						// according to test interfaces we will not only prepare the current TestSuite where needed
 						// with export interfaces, internal bindings, but also prepare the list of parent container bindings
 						// and matching client interfaces info for them to be created on the client Suite
-						introspectInterfaceAndPrepareTestSuite(suiteDef, description, currComp, currItf, suiteClientItfsNameSignature, containerBindings);
+						Suite currSuite = introspectInterfaceAndPrepareTestSuite(suiteDef, description, currComp, currItf, suiteClientItfsNameSignature, containerBindings);
+						if (currSuite != null)
+							testSuites.add(currSuite);
+					}
 				}
 
 			}
@@ -556,7 +555,7 @@ public class Launcher {
 		return false;
 	}
 
-	private void introspectInterfaceAndPrepareTestSuite(Definition suiteDef, String suiteDescription, Component currComp, Interface currItf,
+	private Suite introspectInterfaceAndPrepareTestSuite(Definition suiteDef, String suiteDescription, Component currComp, Interface currItf,
 			Map<String, String> suiteClientItfsNameSignature,
 			List<Binding> containerBindings) {
 
@@ -574,7 +573,10 @@ public class Launcher {
 		turnToControllerContainer(suiteDef);
 		ControllerContainer currDefAsCtrlCtr = (ControllerContainer) suiteDef;
 
-		// re-init at every loop
+		// return
+		Suite suite = null;
+
+		// useful vars
 		String currItfInitFuncName = null;
 		String currItfInitMethName = null;
 		String currItfCleanupFuncName = null;
@@ -594,7 +596,7 @@ public class Launcher {
 
 		// we only are concerned by server interfaces
 		if (!currTypeItf.getRole().equals(TypeInterface.SERVER_ROLE))
-			return;
+			return suite;
 
 		boolean hasTests = false;
 		itfSignature = currTypeItf.getSignature();
@@ -605,7 +607,7 @@ public class Launcher {
 			currIDL = idlLoaderItf.load(itfSignature, compilerContext);
 		} catch (ADLException e) {
 			logger.warning("Could not load interface definition " + itfSignature + " - skipping");
-			return;
+			return suite;
 		}
 
 		assert currIDL instanceof InterfaceDefinition;
@@ -800,13 +802,14 @@ public class Launcher {
 					+ " - " + currComp.getName()		// sub-comp
 					+ " - " + currTypeItf.getName();	// itf
 
-			testSuites.add(
-					new Suite(fullSuiteDescription,
-							currItfInitFuncName, currItfInitMethName,
-							currItfCleanupFuncName, currItfCleanupMethName,
-							currTestInfo,
-							itfExportName));
+			suite = new Suite(fullSuiteDescription,
+					currItfInitFuncName, currItfInitMethName,
+					currItfCleanupFuncName, currItfCleanupMethName,
+					currTestInfo,
+					itfExportName);
 		}
+		
+		return suite;
 
 	}
 
@@ -911,7 +914,7 @@ public class Launcher {
 	 * @param containerDef The container definition to be filled.
 	 */
 	private void addTestSuitesToContainer(Definition containerDef) {
-		for (Definition currTestDef : validTestSuitesDefinitionList) {
+		for (Definition currTestDef : validTestSuitesDefsList) {
 			DefinitionReference currTestDefRef = ASTHelper.newDefinitionReference(nodeFactoryItf, currTestDef.getName());
 			ASTHelper.setResolvedDefinition(currTestDefRef, currTestDef);
 
@@ -970,7 +973,7 @@ public class Launcher {
 
 	/**
 	 * Filters the testFolderADLList of ADLs to keep only the @TestSuite-annotated ones.
-	 * Those TestSuite-s Definitions are added to the validTestSuitesDefinitionList list.
+	 * Those TestSuite-s Definitions are added to the validTestSuitesDefsList list.
 	 */
 	private void filterValidTestSuites() {
 		for (String currentADL : testFolderADLList) {
@@ -989,7 +992,7 @@ public class Launcher {
 							Definition currDef = (Definition) currObj;
 							// Then keep only if annotated with @TestSuite
 							if (AnnotationHelper.getAnnotation(currDef, TestSuite.class) != null) {
-								validTestSuitesDefinitionList.add(currDef);
+								validTestSuitesDefsList.add(currDef);
 								logger.info("@TestSuite found: " + currDef.getName());
 							}
 						}
@@ -1126,11 +1129,14 @@ public class Launcher {
 		return Guice.createInjector(new PluginLoaderModule());
 	}
 
+	/**
+	 * Here we use the standard compiler initialization + A number of internals usually coming later.
+	 */
 	protected void initCompiler() {
 		errorManager = injector.getInstance(ErrorManager.class);
 		adlCompiler = injector.getInstance(ADLCompiler.class);
 
-		// TODO: check if cleanup/moving to another class is needed ?
+		// Our additions
 		nodeFactoryItf = injector.getInstance(NodeFactory.class);
 		suiteCSrcGenerator = injector.getInstance(SuiteSourceGenerator.class);
 		loaderItf = injector.getInstance(Loader.class);
