@@ -33,6 +33,17 @@ public class Suite {
 	public TestInfo testInfo;
 	public String clientItf;
 	
+	/**
+	 * Modelization of a CU_SuiteInfo row.
+	 * 
+	 * @param description The user-defined @TestSuite description argument.
+	 * @param initFunc The int-void relay function that will CALL our suite's clientItf.initMeth initialization method. 
+	 * @param initMeth The method that will be CALL-ed in the initFunc relay function implementation.
+	 * @param cleanupFunc The int-void relay function that will CALL our suite's clientItf.cleanupMeth cleanup method. 
+	 * @param cleanupMeth The method that will be CALL-ed in the cleanupFunc relay function implementation.
+	 * @param testInfo The TestInfo structure name that references every @Test function and its description.
+	 * @param clientItf The specific client interface bound to the current target @TestSuite. 
+	 */
 	public Suite(String description, String initFunc, String initMeth, String cleanupFunc, String cleanupMeth, TestInfo testInfo, String clientItf) {
 		this.description = description;
 		this.initFunc = initFunc;

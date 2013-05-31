@@ -29,6 +29,11 @@ public class TestInfo {
 	public String structName;
 	public List<TestCase> testCases;
 	
+	/**
+	 * Modelization of a CU_TestInfo structure.
+	 * @param structName Name of the TestInfo suite.
+	 * @param testCases A list of "description - function" pairs that will fill the rows of our CU_TestInfo.
+	 */
 	public TestInfo(String structName, List<TestCase> testCases) {
 		this.structName = structName;
 		this.testCases = testCases;
