@@ -172,6 +172,9 @@ public class Launcher {
 	protected IDLLoader 			idlLoaderItf;
 	protected OutputFileLocator 	outputFileLocatorItf;
 	protected NodeMerger 			nodeMergerItf;
+	
+	// default mode
+	private CUnitMode 				cunit_mode 				= CUnitMode.AUTOMATED;
 
 	protected void init(final String... args) throws InvalidCommandLineException {
 
@@ -389,11 +392,21 @@ public class Launcher {
 		List<Object> loadedDefs = null;
 		String rootAdlName = adlName + "<";
 
-		if (((String) compilerContext.get(CUnitModeOptionHandler.CUNITMODE_CONTEXT_KEY)).equals("console")) {
+		String cunitModeUserInput = (String) compilerContext.get(CUnitModeOptionHandler.CUNITMODE_CONTEXT_KEY);
+		if (cunitModeUserInput.equals("console")) {
+			cunit_mode = CUnitMode.CONSOLE;
 			logger.info("Loading container in Console mode");
 			rootAdlName += "org.ow2.mind.unit.MindUnitConsole";
 		} else {
-			logger.info("Loading container in Automated mode");
+			if (cunitModeUserInput.equals("gcov")) {
+				cunit_mode = CUnitMode.GCOV;
+				logger.info("Loading container in GCov Automated mode");
+			}
+			else {
+				cunit_mode = CUnitMode.AUTOMATED;
+				logger.info("Loading container in basic Automated mode");
+			}
+			
 			rootAdlName += "org.ow2.mind.unit.MindUnitAutomated";
 		}
 
@@ -804,9 +817,26 @@ public class Launcher {
 		/*
 		 * Then compile
 		 */
-		logger.info("Launching executable compilation");
+		
+		String exeName = null;
+		String simpleOutput = "mindUnitOutput";
+		switch (cunit_mode) {
+			case CONSOLE:
+				exeName = "console_" + simpleOutput;
+				break;
+			case GCOV:
+				exeName = "gcov_" + simpleOutput;
+				break;
+			default:
+			case AUTOMATED:
+				exeName = "automated_" + simpleOutput;
+				break;
+		}
+		
+		logger.info("Launching executable compilation (executable name: " + exeName + ")");
+		
 		try {
-			loadedDefs = adlCompiler.compile(rootAdlName, "mindUnitOutput", CompilationStage.COMPILE_EXE, compilerContext);
+			loadedDefs = adlCompiler.compile(rootAdlName, exeName, CompilationStage.COMPILE_EXE, compilerContext);
 		} catch (ADLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -1067,6 +1097,10 @@ public class Launcher {
 				nodeFactoryItf, nodeMergerItf);
 	}
 
+	public enum CUnitMode {
+		AUTOMATED, CONSOLE, GCOV
+	}
+	
 	//-- original utility methods
 
 	private void printExtensionPoints(final PluginManager pluginManager,

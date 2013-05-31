@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2011 STMicroelectronics
+  Copyright (C) 2013 Schneider-Electric
 
  This file is part of "Mind Compiler" is free software: you can redistribute 
  it and/or modify it under the terms of the GNU Lesser General Public License 
@@ -48,7 +48,7 @@
 			defaultValue="automated"
 			allowMultiple="false"
 			description="CUnit interface mode selection (if no value, automated is the default)"
-			argDesc="&lt;automated/console&gt;" />
+			argDesc="&lt;automated/console/gcov&gt;" />
 		
     </extension>
 
