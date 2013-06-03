@@ -1,0 +1,6 @@
+
+abstract primitive org.ow2.mind.unit.AbstractCUnitSuite {
+	
+	// will be automatically filled by the MindUnit plugin
+	
+}

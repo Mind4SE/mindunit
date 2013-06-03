@@ -1,0 +1,27 @@
+/*
+ * Schneider Electric Industries SAS: Tango NP Project
+ */
+
+/**
+ * @file MindUnitAutomated.adl
+ * @brief Primitive for automated tests execution
+ * @genFigure
+ * 
+ * Comments
+ *
+ */
+
+/*
+ * All rights reserved (c) 2013
+ * Schneider Electric Industries SAS
+ *
+ * This computer program may not be used, copied, distributed, corrected,
+ * modified, translated, transmitted or assigned without Schneider-electric�s
+ * prior written authorization.
+ */
+ 
+ primitive org.ow2.mind.unit.MindUnitAutomated {
+ 	provides MindUnitTestsLauncher as launchTests;
+ 	
+  	source mindUnitAutomated.c;
+}
