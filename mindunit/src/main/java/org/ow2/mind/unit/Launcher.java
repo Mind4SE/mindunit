@@ -686,23 +686,23 @@ public class Launcher {
 					// simple name for the CALL
 					currItfInitMethName = currMethod.getName();
 
-					// return type should be void
+					// return type should be int (according to CUnit)
 					Type methodType = currMethod.getType();
 					if (!(methodType instanceof PrimitiveType
 							&& ((PrimitiveType) methodType).getName().equals("int"))) {
-						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method return type should be \"int\" - Adding to test list anyway");
+						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Init method return type should be \"int\" - Adding to test list anyway");
 					}
 
 					// argument must be void ( = no argument)
 					Parameter[] methodParams = currMethod.getParameters();
 					if (methodParams.length > 0) {
-						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method arguments must be \"(void)\" - Skipping method");
+						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Init method arguments must be \"(void)\" - Skipping method");
 						continue;
 					}
 
 				} else if (isCleanup) {
 					if (currItfCleanupFuncName != null) {
-						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": An @Init method was already defined - Skipping");
+						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": An @Cleanup method was already defined - Skipping");
 						continue;
 					}
 					// compute the relay function name we'll provide to CUnit that will CALL the test
@@ -716,17 +716,17 @@ public class Launcher {
 					// simple name for the CALL
 					currItfCleanupMethName = currMethod.getName();
 
-					// return type should be void
+					// return type should be int (according to CUnit)
 					Type methodType = currMethod.getType();
 					if (!(methodType instanceof PrimitiveType
 							&& ((PrimitiveType) methodType).getName().equals("int"))) {
-						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method return type should be \"int\" - Adding to test list anyway");
+						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Cleanup method return type should be \"int\" - Adding to test list anyway");
 					}
 
 					// argument must be void ( = no argument)
 					Parameter[] methodParams = currMethod.getParameters();
 					if (methodParams.length > 0) {
-						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Test method arguments must be \"(void)\" - Skipping method");
+						logger.warning("While handling " + currItfDef.getName() + "#" + currMethod.getName() + ": @Cleanup method arguments must be \"(void)\" - Skipping method");
 						continue;
 					}
 				}
