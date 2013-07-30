@@ -273,6 +273,12 @@ public class Launcher {
 		// Build list of ADL files
 		listTestFolderADLs();
 
+		if (testFolderADLList.isEmpty()) {
+			logger.info("No .adl file found: exit");
+			System.exit(0);
+		}
+			
+		
 		/*
 		 * Then parse/load them (but stay at CHECK_ADL stage).
 		 * We obtain a list of Definition-s
@@ -619,7 +625,7 @@ public class Launcher {
 			boolean isTest 		= AnnotationHelper.getAnnotation(currMethod, Test.class) != null;
 			boolean isInit 		= AnnotationHelper.getAnnotation(currMethod, Init.class) != null;
 			boolean isCleanup 	= AnnotationHelper.getAnnotation(currMethod, Cleanup.class) != null;
-
+			
 			// Maybe replace the algorithm for a switch-case ?
 
 			// ^ = XOR
@@ -976,6 +982,7 @@ public class Launcher {
 	 * Those TestSuite-s Definitions are added to the validTestSuitesDefsList list.
 	 */
 	private void filterValidTestSuites() {
+		logger.info("Loading definitions from the ADL files to find @TestSuites...");
 		for (String currentADL : testFolderADLList) {
 			List<Object> l;
 			try {
@@ -997,9 +1004,20 @@ public class Launcher {
 							}
 						}
 					}
-				} else logger.info(currentADL + " definition load failed, invalid ADL");
+				} else {
+					logger.info(currentADL + " definition load failed, invalid ADL");
+					System.exit(1);
+				}
 			} catch (ADLException e) {
 				logger.info(currentADL + " definition load failed, invalid ADL");
+				if (!errorManager.getErrors().contains(e.getError())) {
+					// the error has not been logged in the error manager, print it.
+					try {
+						errorManager.logError(e.getError());
+					} catch (final ADLException e2) {
+						// ignore
+					}
+				}
 			} catch (InterruptedException e) {
 				logger.info(currentADL + " definition load failed, thread was interrupted ! detailed error below: ");
 				e.printStackTrace();
@@ -1075,6 +1093,7 @@ public class Launcher {
 	 * @throws IOException
 	 */
 	protected void listTestFolderADLs() {
+		logger.info("Searching for .adl files in the target directories...");
 		for (final File directory : validTestFoldersList) {
 			try {
 				exploreDirectory(directory.getCanonicalFile(), null);
