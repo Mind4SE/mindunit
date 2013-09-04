@@ -511,7 +511,7 @@ public class Launcher {
 		if (description == null)
 			description = suiteDef.getName();
 
-		if (testSuiteHasExternalInterface(suiteDef))
+		if (testSuiteHasClientInterface(suiteDef))
 			return;
 
 		if (suiteDef instanceof ComponentContainer) {
@@ -548,15 +548,17 @@ public class Launcher {
 	 * @param currDef The TestSuite to be checked.
 	 * @return true on error
 	 */
-	private boolean testSuiteHasExternalInterface(Definition currDef) {
+	private boolean testSuiteHasClientInterface(Definition currDef) {
 
 		assert currDef instanceof InterfaceContainer;
 		InterfaceContainer currDefAsItfCtr = (InterfaceContainer) currDef;
 
-		if (currDefAsItfCtr.getInterfaces().length > 0) {
-			logger.warning("While handling @TestSuite + " + currDef.getName() + ": A test suite must not have any external interface - skipping");
-			return true;
-		} 
+		for (Interface currItf : currDefAsItfCtr.getInterfaces()) {
+			if (((TypeInterface) currItf).getRole().equals(TypeInterface.CLIENT_ROLE)) {
+				logger.warning("While handling @TestSuite + " + currDef.getName() + ": A test suite must not have any client interface !! - Skipping TestSuite !");
+				return true;
+			}
+		}
 
 		return false;
 	}
