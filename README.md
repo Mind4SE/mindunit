@@ -66,6 +66,7 @@ void METH(testItf, myFirstTest)(void) {
 	CU_ASSERT_EQUAL(0, CALL(clientItf, method)(arg0, arg1));
 	...
 }
+```
 
 Notes:
 - @Test methods return type MUST be "void" and argument MUST be "void" ;
