@@ -159,7 +159,7 @@ public class Launcher {
 
 	protected Map<Object, Object> 	compilerContext			= new HashMap<Object, Object>();
 
-	protected final String 			adlName 				= "org.ow2.mind.unit.MindUnitApplication";
+	protected final String 			adlName 				= "mindunit.MindUnitApplication";
 
 	// compiler components :
 	protected Injector 				injector;
@@ -293,7 +293,7 @@ public class Launcher {
 		/*
 		 * Get the test container 
 		 */
-		String testContainerName = "org.ow2.mind.unit.MindUnitContainer";
+		String testContainerName = "mindunit.MindUnitContainer";
 
 		Definition containerDef = getContainerFromName(testContainerName);
 
@@ -881,7 +881,7 @@ public class Launcher {
 		if (cunitModeUserInput.equals("console")) {
 			cunit_mode = CUnitMode.CONSOLE;
 			logger.info("Loading container in Console mode");
-			rootAdlName += "org.ow2.mind.unit.MindUnitConsole";
+			rootAdlName += "mindunit.MindUnitConsole";
 		} else {
 			if (cunitModeUserInput.equals("gcov")) {
 				cunit_mode = CUnitMode.GCOV;
@@ -892,7 +892,7 @@ public class Launcher {
 				logger.info("Loading container in basic Automated mode");
 			}
 
-			rootAdlName += "org.ow2.mind.unit.MindUnitAutomated";
+			rootAdlName += "mindunit.MindUnitAutomated";
 		}
 
 		rootAdlName += ">";
