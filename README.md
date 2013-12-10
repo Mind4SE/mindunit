@@ -58,13 +58,10 @@ interface TestInterface {
 4. tester.c:
 ```
 #include "CUnit/CUnit.h"
-
 void METH(testItf, myFirstTest)(void) {
-	...
 	// Call the tested component through its usual interface
 	// and check if the result is equal to the expected value: 0
 	CU_ASSERT_EQUAL(0, CALL(clientItf, method)(arg0, arg1));
-	...
 }
 ```
 
