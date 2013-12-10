@@ -27,6 +27,7 @@ Those composite components should usually contain as sub-components:
 
 For example:
 
+1. MyTestSuite.adl:
 ```
 @TestSuite("Suite friendly description")
 composite MyTestSuite {
@@ -38,6 +39,7 @@ composite MyTestSuite {
 }
 ```
 
+2. Tester.adl:
 ```
 primitive Tester {
 	provides TestInterface as testItf;
@@ -45,12 +47,25 @@ primitive Tester {
 }
 ```
 
+3. TestInterface.itf:
 ```
 interface TestInterface {
 	@Test("User-friendly test-description")
-	void runMyTest(void);
+	void myFirstTest(void);
 }
 ```
+
+4. tester.c:
+```C++
+#include "CUnit/CUnit.h"
+
+void METH(testItf, myFirstTest)(void) {
+	...
+	// Call the tested component through its usual interface
+	// and check if the result is equal to the expected value: 0
+	CU_ASSERT_EQUAL(0, CALL(clientItf, method)(arg0, arg1));
+	...
+}
 
 Notes:
 - @Test methods return type MUST be "void" and argument MUST be "void" ;
