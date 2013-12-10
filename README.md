@@ -56,8 +56,9 @@ interface TestInterface {
 ```
 
 4. tester.c:
-```C++
+```
 #include "CUnit/CUnit.h"
+
 void METH(testItf, myFirstTest)(void) {
 	...
 	// Call the tested component through its usual interface
