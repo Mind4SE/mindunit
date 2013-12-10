@@ -6,8 +6,7 @@ A Unit Test framework for Mind components.
 Contact
 =======
 
-mind@ow2.org
-stephaneseyvoz@gmail.com
+mind@ow2.org & stephaneseyvoz@gmail.com
 
 User info
 =========
@@ -28,6 +27,7 @@ Those composite components should usually contain as sub-components:
 
 For example:
 
+```
 @TestSuite("Suite friendly description")
 composite MyTestSuite {
 	contains Tester as myTesterComp ;
@@ -36,16 +36,21 @@ composite MyTestSuite {
 	
 	// ...bindings between the components...
 }
+```
 
+```
 primitive Tester {
 	provides TestInterface as testItf;
 	source tester.c;	
 }
+```
 
+```
 interface TestInterface {
 	@Test("User-friendly test-description")
 	void runMyTest(void);
 }
+```
 
 Notes:
 - @Test methods return type MUST be "void" and argument MUST be "void" ;
