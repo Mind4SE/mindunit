@@ -1,0 +1,36 @@
+/*
+ * Copyright (C) 2013 Schneider-Electric
+ *
+ * This file is part of "Mind Compiler" is free software: you can redistribute 
+ * it and/or modify it under the terms of the GNU Lesser General Public License 
+ * as published by the Free Software Foundation, either version 3 of the 
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT 
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Contact: mind@ow2.org
+ *
+ * Authors: Francois Deloye, Stephane Seyvoz
+ * Contributors: 
+ */
+
+/**
+ * @file MindUnitApplicationType.adl
+ * @brief Define type of a test component for a MIND component 
+ * @genFigure
+ * Comments
+ *
+ * The tests component Type: 
+ *  - it has no provide and no require
+ *  - it is in charge of stubbing requires interfaces of component to be tested  
+ *  - it must provide a CU_SuiteInfo suites[] table defined as extern in MindGlue (mindglue.c)
+ */ 
+type mindunit.MindUnitApplicationType {
+ /* Must be empty */
+}
