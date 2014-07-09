@@ -28,5 +28,5 @@
 ## Launcher class name
 LAUNCHER=org.ow2.mind.unit.Launcher
 
-#echo $(dirname $(readlink -m $0))/jar_launcher ${LAUNCHER} ${MINDUNIT_OPTS} -Dmindunit.launcher.name=mindunit ${LAUNCHER} $*
-exec $(dirname $(readlink -m $0))/jar_launcher ${LAUNCHER} ${MINDUNIT_OPTS} -Dmindunit.launcher.name=mindunit ${LAUNCHER} $*
+#echo $(dirname $0)/jar_launcher ${LAUNCHER} ${MINDUNIT_OPTS} -Dmindunit.launcher.name=mindunit ${LAUNCHER} "$@"
+exec $(dirname $0)/jar_launcher ${LAUNCHER} ${MINDUNIT_OPTS} -Dmindunit.launcher.name=mindunit ${LAUNCHER} "$@"
