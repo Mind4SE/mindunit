@@ -3,5 +3,4 @@
 	<mindpathentry kind="SOURCE" path="/MindUnit/runtime"/>
 	<mindpathentry kind="SOURCE" path="/MindUnit/src/main/mind"/>
 	<mindpathentry kind="SOURCE" path="/MindUnit/src/test/mind"/>
-	<mindpathentry kind="APPLI" path="pkg.Tested:app"/>
 </mindpath>
