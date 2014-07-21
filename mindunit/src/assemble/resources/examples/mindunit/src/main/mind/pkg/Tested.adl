@@ -1,0 +1,7 @@
+primitive pkg.Tested {
+ 	provides AnInterface as providedItf;
+ 	requires AnotherInterface as requiredItf;
+ 	
+	// TODO Auto-generated component implementation
+	source Tested.c;
+}

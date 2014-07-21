@@ -1,0 +1,10 @@
+@TestSuite("Suite friendly description")
+composite pkgTest.MyTestSuite {
+    contains pkgTest.Tester as myTesterComp ;
+    contains pkg.Tested as myTestedComp ;
+    contains pkgTest.Mock as myMockComp ;
+
+    // ...bindings between the components...
+    binds myTesterComp.clientItf to myTestedComp.providedItf;
+    binds myTestedComp.requiredItf to myMockComp.mockItf;
+}

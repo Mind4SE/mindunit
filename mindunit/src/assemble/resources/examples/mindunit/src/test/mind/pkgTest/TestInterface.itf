@@ -1,0 +1,5 @@
+
+interface pkgTest.TestInterface {
+    @Test("User-friendly test-description")
+    void myFirstTest(void);
+}

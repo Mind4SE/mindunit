@@ -1,0 +1,6 @@
+primitive pkgTest.Mock {
+ 	provides pkg.AnotherInterface as mockItf;
+ 	
+	// TODO Auto-generated component implementation
+	source Mock.c;
+}

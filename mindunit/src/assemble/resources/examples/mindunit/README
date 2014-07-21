@@ -1,0 +1,2 @@
+To view CUnit XML result files in your browser, copy the *.dtd and *.xsl files provided by CUnit in the same folder as the XML files.
+On a default CUnit installation, those files are in /usr/local/share/CUnit/ folder.

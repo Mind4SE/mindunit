@@ -36,16 +36,15 @@
             <fileMode>0644</fileMode>
         </dependencySet>
     </dependencySets>
-<!-- 
+
     <fileSets>
         <fileSet>
-            <directory>src/assemble/resources/examples</directory>
+            <directory>src/assemble/resources/examples/mindunit</directory>
             <filtered>false</filtered>
-            <outputDirectory>examples</outputDirectory>
-            <fileMode>0644</fileMode>
+            <outputDirectory>examples/mindunit</outputDirectory>
         </fileSet>
     </fileSets>
--->
+-
     <files>
         <file>
             <source>src/assemble/resources/mindunit</source>
