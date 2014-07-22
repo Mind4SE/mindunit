@@ -1,5 +1,20 @@
 
 interface pkgTest.TestInterface {
-    @Test("User-friendly test-description")
+    // Use @Init annotation to define initialization function, called before test execution
+    // Note that it must be of type: int f(void), success: return 0
+    // Refer to the type defined by CUnit: CU_InitializeFunc 
+    @Init
+    int myInit(void);
+    
+    // Use @Test annotation to define a test function and its description
+    // Note that it must be of type: void f(void)
+    // Refer to the type defined by CUnit: CU_TestFunc
+    @Test("User-friendly test-description#2")
     void myFirstTest(void);
+    
+    // Use @Cleanup annotation to define clean-up functions, called after test execution
+    // Note that it must be of type: int f(void), success: return 0
+    // Refer to the type defined by CUnit: CU_CleanupFunc
+    @Cleanup
+    int myCleanup(void);
 }

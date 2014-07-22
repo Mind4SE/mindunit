@@ -1,5 +1,6 @@
 To build this example, CUnit must be installed in your environment,
 it can be downloaded from: http://sourceforge.net/projects/cunit/files/CUnit/
+Command to build this test example: make test 
 
 To view CUnit XML result files in your browser, copy the *.dtd and *.xsl files
 provided by CUnit in the same folder as the XML files.

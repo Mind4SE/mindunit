@@ -1,7 +1,8 @@
 primitive pkgTest.Tester {
 	requires pkg.AnInterface as clientItf;
 	provides TestInterface as testItf;
+	provides TestInterface2 as testItf2;
 		
-	// TODO Auto-generated component implementation
+	// Component implementation
 	source Tester.c;
 }
