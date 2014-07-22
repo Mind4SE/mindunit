@@ -1,0 +1,19 @@
+@TestSuite("Suite friendly description")
+//Note that a CU_SuiteInfo is generated for each interface with test functions
+//In this example, 2 CU_SuiteInfo are generated since Tester component
+//provides TestInterface and TestInterface2
+composite pkgTest.MyTesterContainer {
+    // Here is the tester component, with 2 test suites inside
+    contains Tester as myTesterComp ;
+    // Here is a mock component for the tested component
+    contains Mock as myMockComp ;
+    // Here is the component to be tested
+    contains pkg.Tested as myTestedComp ;
+
+    // Binding of the interfaces of the tested component
+    binds myTesterComp.clientItf to myTestedComp.providedItf;
+    binds myTestedComp.requiredItf to myMockComp.mockItf;
+    
+    // No need to bind test interfaces
+    // The functions are invoked by CUnit launcher
+}

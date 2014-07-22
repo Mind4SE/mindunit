@@ -1,0 +1,4 @@
+
+interface pkg.AnotherInterface {
+	int anotherMethod(int arg);
+}

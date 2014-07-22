@@ -1,0 +1,4 @@
+
+interface pkg.AnInterface {
+	int method (int arg0, int arg1);
+}
