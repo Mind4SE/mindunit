@@ -28,6 +28,7 @@
  *
  */
 
+#include <stdio.h>
 #include "CUnit/Automated.h"
 
 /* Core execution of the tests */
