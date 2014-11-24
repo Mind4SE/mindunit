@@ -44,7 +44,7 @@
             <outputDirectory>examples/mindunit</outputDirectory>
         </fileSet>
     </fileSets>
--
+
     <files>
         <file>
             <source>src/assemble/resources/mindunit</source>
