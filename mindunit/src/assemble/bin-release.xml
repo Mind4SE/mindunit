@@ -39,26 +39,14 @@
 
     <fileSets>
         <fileSet>
-            <directory>src/assemble/resources/examples/mindunit</directory>
+            <directory>src/assemble/resources/</directory>
             <filtered>false</filtered>
-            <outputDirectory>examples/mindunit</outputDirectory>
+            <outputDirectory>.</outputDirectory>
         </fileSet>
     </fileSets>
 
-    <files>
-        <file>
-            <source>src/assemble/resources/mindunit</source>
-            <fileMode>0755</fileMode>
-            <outputDirectory>bin</outputDirectory>
-            <filtered>true</filtered>
-        </file>
-        <file>
-            <source>src/assemble/resources/mindunit.bat</source>
-            <fileMode>0755</fileMode>
-            <outputDirectory>bin</outputDirectory>
-            <filtered>true</filtered>
-        </file>
- <!-- 
+ <!--
+     <files>
         <file>
             <source>src/assemble/resources/README.txt</source>
             <fileMode>0644</fileMode>
@@ -71,6 +59,6 @@
             <fileMode>0644</fileMode>
             <outputDirectory></outputDirectory>
         </file>
- -->
     </files>
+-->
 </assembly>
