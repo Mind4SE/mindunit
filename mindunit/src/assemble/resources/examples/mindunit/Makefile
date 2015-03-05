@@ -1,3 +1,6 @@
+# Enforce bash to execute our shell commands (Makefile default is "shell" / sh, not bash)
+SHELL := /bin/bash
+
 # If the MIND_ROOT variable is defined, look for Mind binaries in this directory
 # otherwise, expect that Mind binaries are in the PATH.
 ifdef MIND_ROOT
@@ -26,6 +29,9 @@ docOutputDir=$(confOutputDirVar)/doc
 graphOutputDir=$(confOutputDirVar)/graph
 testBinOutputDir=$(confOutputDirVar)/test-binaries
 testDocOutputDir=$(confOutputDirVar)/test-doc
+
+# Will be prepared by the installation, see "dependencies" task
+CUNIT_INSTALL=$(HOME)/CUnit
 
 # Strings and comments management - Skip to "all:" for the real build.
 
@@ -126,8 +132,18 @@ all: dependencies compile graph doc test
 
 clean: clean_dependencies clean_compile clean_graph clean_doc clean_test
 
+# Works with "SHELL := /bin/bash" at the beginning of the Makefile, see GNU Make documentation 5.3.1
 dependencies: build_dependencies
-# Add 'cp' commands here to copy your project dependencies files to depsOutputDir
+	echo 'Building pre-requisite CUnit library... ' ; \
+	if [ -d "CUnit-2.1-2" ]; then rm CUnit-2.1-2; fi ; \
+	tar -xvjf CUnit-2.1-2-src.tar.bz2 ; \
+	cd CUnit-2.1-2 ; \
+	./configure --prefix $(HOME)/CUnit ; \
+	$(MAKE) ; \
+	if [ -d "$(HOME)/CUnit" ]; then rm -rf $(HOME)/CUnit; fi ; \
+	$(MAKE) install ; \
+	echo 'CUnit should now be installed in $(HOME)/CUnit' ;
+	cd ..
 
 compile: build 
 ifdef targetComponent
@@ -160,7 +176,7 @@ test: build_test
 ifdef testSourcePath
 	@if test ! -x $(MINDUNIT) && ! (which $(MINDUNIT) 2>&1)>/dev/null ; \
 		then echo ' Mindunit not found! Set MIND_ROOT environment variable or set 'Mindc location' in Preference page of Eclipse' && exit 1 ; \
-		else $(MINDUNIT) $(sourcePathArg) $(includePathArg) $(compilerCommandArg) $(linkerCommandArg) $(assemblerCommandArg) $(asFlagsArg) $(cppFlagsArg) $(cFlagsArg) $(ldFlagsArg) $(extraOptionsArg) $(testExtraOptionsArg) -o=$(testBinOutputDir) $(testSourcePathArg);\
+		else $(MINDUNIT) $(sourcePathArg) $(includePathArg) --inc-path=$(CUNIT_INSTALL)/include $(compilerCommandArg) $(linkerCommandArg) $(assemblerCommandArg) $(asFlagsArg) $(cppFlagsArg) $(cFlagsArg) $(ldFlagsArg) --ld-flags="-L$(CUNIT_INSTALL)/lib -Wl,-rpath -Wl,$(CUNIT_INSTALL)/lib" $(extraOptionsArg) $(testExtraOptionsArg) -o=$(testBinOutputDir) $(testSourcePathArg);\
 	fi
 else
 	@echo "No test folder defined: Please configure the 'testSourcePath' variable in your $(CONFIGURATION).properties file."
