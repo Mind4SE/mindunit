@@ -176,7 +176,7 @@ test: build_test
 ifdef testSourcePath
 	@if test ! -x $(MINDUNIT) && ! (which $(MINDUNIT) 2>&1)>/dev/null ; \
 		then echo ' Mindunit not found! Set MIND_ROOT environment variable or set 'Mindc location' in Preference page of Eclipse' && exit 1 ; \
-		else $(MINDUNIT) $(sourcePathArg) $(includePathArg) --inc-path=$(CUNIT_INSTALL)/include $(compilerCommandArg) $(linkerCommandArg) $(assemblerCommandArg) $(asFlagsArg) $(cppFlagsArg) $(cFlagsArg) $(ldFlagsArg) --ld-flags="-L$(CUNIT_INSTALL)/lib -Wl,-rpath -Wl,$(CUNIT_INSTALL)/lib" $(extraOptionsArg) $(testExtraOptionsArg) -o=$(testBinOutputDir) $(testSourcePathArg);\
+		else $(MINDUNIT) $(sourcePathArg) $(includePathArg) --inc-path=$(CUNIT_INSTALL)/include $(compilerCommandArg) $(linkerCommandArg) $(assemblerCommandArg) $(asFlagsArg) $(cppFlagsArg) $(cFlagsArg) $(ldFlagsArg) --ld-flags="-L$(CUNIT_INSTALL)/lib" $(extraOptionsArg) $(testExtraOptionsArg) -o=$(testBinOutputDir) $(testSourcePathArg);\
 	fi
 else
 	@echo "No test folder defined: Please configure the 'testSourcePath' variable in your $(CONFIGURATION).properties file."
